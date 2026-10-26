@@ -1,0 +1,15 @@
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+private/
+node_modules/
+.next/
+out/
+*.log
+
+.DS_Store
+*.tsbuildinfo
