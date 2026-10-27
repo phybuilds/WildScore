@@ -48,6 +48,7 @@ export default function SavedAnalysisViewer() {
   const [draftLabel, setDraftLabel] = useState("");
   const [replayEnd, setReplayEnd] = useState<number | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
+  const [scoreVolume, setScoreVolume] = useState(0.7);
   const [audioUnavailable, setAudioUnavailable] = useState(false);
   const [suppressedCueCount, setSuppressedCueCount] = useState(0);
   const [reviewState, dispatchReview] = useReducer(
@@ -57,6 +58,7 @@ export default function SavedAnalysisViewer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
   const scheduledNodesRef = useRef(new Set<OscillatorNode>());
   const scheduleTimerRef = useRef<number | null>(null);
   const scheduledThroughRef = useRef(0);
@@ -198,7 +200,9 @@ export default function SavedAnalysisViewer() {
       gain.gain.linearRampToValueAtTime(note.gain, start + 0.012);
       gain.gain.exponentialRampToValueAtTime(0.0001, end);
       oscillator.connect(gain);
-      gain.connect(context.destination);
+      const masterGain = masterGainRef.current;
+      if (!masterGain) continue;
+      gain.connect(masterGain);
       oscillator.addEventListener(
         "ended",
         () => scheduledNodesRef.current.delete(oscillator),
@@ -232,12 +236,28 @@ export default function SavedAnalysisViewer() {
     try {
       const context = audioContextRef.current ?? new AudioContext();
       audioContextRef.current = context;
+      if (!masterGainRef.current) {
+        const masterGain = context.createGain();
+        masterGain.gain.setValueAtTime(scoreVolume, context.currentTime);
+        masterGain.connect(context.destination);
+        masterGainRef.current = masterGain;
+      }
       await context.resume();
       setAudioUnavailable(false);
       setSoundEnabled(true);
     } catch {
       setAudioUnavailable(true);
       setSoundEnabled(false);
+    }
+  }
+
+  function changeScoreVolume(value: number) {
+    const volume = Math.min(1, Math.max(0, value));
+    setScoreVolume(volume);
+    const context = audioContextRef.current;
+    const masterGain = masterGainRef.current;
+    if (context && masterGain) {
+      masterGain.gain.setTargetAtTime(volume, context.currentTime, 0.015);
     }
   }
 
@@ -517,15 +537,31 @@ export default function SavedAnalysisViewer() {
               </button>
             </div>
             <div className="sound-strip" aria-live="polite">
-              <button
-                className={soundEnabled ? "sound-toggle is-on" : "sound-toggle"}
-                type="button"
-                aria-pressed={soundEnabled}
-                onClick={() => void toggleSound()}
-              >
-                <span className="status-dot" aria-hidden="true" />
-                Sound {soundEnabled ? "on" : "off"}
-              </button>
+              <div className="sound-controls">
+                <button
+                  className={soundEnabled ? "sound-toggle is-on" : "sound-toggle"}
+                  type="button"
+                  aria-pressed={soundEnabled}
+                  onClick={() => void toggleSound()}
+                >
+                  <span className="status-dot" aria-hidden="true" />
+                  Sound {soundEnabled ? "on" : "off"}
+                </button>
+                <label className="score-volume">
+                  <span>Score level {Math.round(scoreVolume * 100)}%</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={scoreVolume}
+                    aria-label="Score volume"
+                    onChange={(event) =>
+                      changeScoreVolume(event.currentTarget.valueAsNumber)
+                    }
+                  />
+                </label>
+              </div>
               <p>
                 <strong>Audio key:</strong> rising notes mark appearance proposals;
                 falling notes mark disappearances. Accepted events sound stronger.

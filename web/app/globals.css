@@ -149,7 +149,7 @@ h2 {
 
 .sound-strip {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(210px, auto) minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
   padding: 12px 0 2px;
@@ -158,6 +158,12 @@ h2 {
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 0.75rem;
   line-height: 1.4;
+}
+
+.sound-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
 .sound-strip p {
@@ -187,6 +193,22 @@ h2 {
 .sound-toggle.is-on .status-dot {
   border-color: #f3d85f;
   background: #f3d85f;
+}
+
+.score-volume {
+  display: grid;
+  gap: 4px;
+  min-width: 116px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.score-volume input {
+  width: 116px;
+  accent-color: var(--blue);
 }
 
 .sound-omission {
@@ -881,8 +903,9 @@ footer {
     grid-template-columns: 1fr;
   }
 
-  .sound-toggle {
-    justify-self: start;
+  .sound-controls {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .disclosure,
