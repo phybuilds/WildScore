@@ -6,9 +6,11 @@
 !**/.env.example
 
 private/
+web/public/demo/
 node_modules/
 .next/
 out/
+web/out/
 *.log
 
 .DS_Store
