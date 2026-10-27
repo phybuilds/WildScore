@@ -46,6 +46,7 @@ export default function SavedAnalysisViewer() {
   const [currentTime, setCurrentTime] = useState(0);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
+  const [showAllSegments, setShowAllSegments] = useState(false);
   const [draftLabel, setDraftLabel] = useState("");
   const [replayEnd, setReplayEnd] = useState<number | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -110,6 +111,7 @@ export default function SavedAnalysisViewer() {
   const selectedGeometry = visibleGeometry.filter(
     (geometry) => geometry.segment_id === selectedSegmentId,
   );
+  const displayedGeometry = showAllSegments ? visibleGeometry : selectedGeometry;
   const selectedEvent = bundle?.events.find(
     (event) => event.event_id === selectedEventId,
   );
@@ -289,6 +291,7 @@ export default function SavedAnalysisViewer() {
   function selectEvent(event: CandidateEvent) {
     setSelectedEventId(event.event_id);
     setSelectedSegmentId(event.segment_id);
+    setShowAllSegments(false);
     setAnalysisVisible(true);
     setReplayEnd(null);
     const video = videoRef.current;
@@ -296,7 +299,7 @@ export default function SavedAnalysisViewer() {
       cancelAudioSchedule();
       resetSuppressedCues();
       video.pause();
-      video.currentTime = Math.max(0, event.start_s - 0.35);
+      video.currentTime = event.start_s;
       setCurrentTime(video.currentTime);
     }
   }
@@ -311,6 +314,7 @@ export default function SavedAnalysisViewer() {
       .filter((event) => event.segment_id === segmentId)
       .sort((left, right) => left.start_s - right.start_s)[0];
     setSelectedSegmentId(segmentId);
+    setShowAllSegments(false);
     setSelectedEventId(firstEvent?.event_id ?? null);
     setAnalysisVisible(true);
     setReplayEnd(null);
@@ -321,7 +325,7 @@ export default function SavedAnalysisViewer() {
       video.pause();
       video.currentTime = Math.max(
         0,
-        (firstEvent?.start_s ?? segment.start_s) - 0.35,
+        firstEvent?.start_s ?? segment.start_s,
       );
       setCurrentTime(video.currentTime);
     }
@@ -515,7 +519,7 @@ export default function SavedAnalysisViewer() {
                 preserveAspectRatio="xMidYMid meet"
                 aria-hidden="true"
               >
-                {selectedGeometry.map((geometry) => {
+                {displayedGeometry.map((geometry) => {
                   const label = currentReviewedLabel(
                     readyBundle,
                     activeReviewState,
@@ -525,7 +529,11 @@ export default function SavedAnalysisViewer() {
                   const height = geometry.box.bottom - geometry.box.top;
                   return (
                     <g
-                      className="selected-geometry"
+                      className={
+                        geometry.segment_id === selectedSegmentId
+                          ? "selected-geometry"
+                          : undefined
+                      }
                       key={`${geometry.segment_id}:${geometry.frame_index}`}
                     >
                       <rect
@@ -550,8 +558,12 @@ export default function SavedAnalysisViewer() {
               {analysisVisible && (
                 <div className="frame-readout" aria-live="off">
                   Frame {currentFrame} · {selectedGeometry.length > 0
-                    ? `following ${selectedSegmentId}`
-                    : "selected segment not visible"}
+                    ? showAllSegments
+                      ? `${visibleGeometry.length} visible · ${selectedSegmentId} selected`
+                      : `following ${selectedSegmentId}`
+                    : showAllSegments
+                      ? `${visibleGeometry.length} visible · selected segment not visible`
+                      : "selected segment not visible at this frame"}
                 </div>
               )}
             </div>
@@ -573,9 +585,18 @@ export default function SavedAnalysisViewer() {
               <label htmlFor="segment-focus">Follow segment</label>
               <select
                 id="segment-focus"
-                value={selectedSegmentId ?? ""}
-                onChange={(event) => selectSegment(event.currentTarget.value)}
+                value={showAllSegments ? "__all__" : selectedSegmentId ?? ""}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  if (value === "__all__") {
+                    setShowAllSegments(true);
+                    setAnalysisVisible(true);
+                  } else {
+                    selectSegment(value);
+                  }
+                }}
               >
+                <option value="__all__">View all segments</option>
                 {[...readyBundle.segments]
                   .sort(
                     (left, right) =>
@@ -595,7 +616,11 @@ export default function SavedAnalysisViewer() {
                     );
                   })}
               </select>
-              <span>Only this segment’s saved box is shown.</span>
+              <span>
+                {showAllSegments
+                  ? "All boxes are shown; the selected segment is yellow."
+                  : "Only this segment’s saved box is shown."}
+              </span>
             </div>
             <div className="sound-strip" aria-live="polite">
               <div className="sound-controls">
@@ -658,6 +683,12 @@ export default function SavedAnalysisViewer() {
                   ? "begin"
                   : "end"} here. This is a review proposal, not proof that the
                 animal entered or left the scene.
+              </p>
+              <p className="review-instruction">
+                Review this event proposal—not the segment itself. If tracking
+                starts after an animal was already visible, reject the appearance.
+                If no box is visible at the boundary, replay the surrounding clip;
+                choose can’t tell only when the evidence remains unclear.
               </p>
               <p className="occlusion-guidance">
                 Reject a boundary caused only by brief occlusion, crowding or a
