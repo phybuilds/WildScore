@@ -127,7 +127,6 @@ h2 {
   letter-spacing: 0.02em;
 }
 
-.sound-status,
 .saved-badge {
   display: inline-flex;
   align-items: center;
@@ -146,6 +145,54 @@ h2 {
   border: 1px solid currentColor;
   border-radius: 50%;
   background: transparent;
+}
+
+.sound-strip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 0 2px;
+  border-top: 1px solid rgba(46, 45, 41, 0.2);
+  color: var(--muted);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.sound-strip p {
+  margin: 0;
+}
+
+.sound-toggle {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 38px;
+  padding: 6px 11px;
+  border-width: 1px;
+  color: var(--muted);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.74rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sound-toggle.is-on {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: white;
+}
+
+.sound-toggle.is-on .status-dot {
+  border-color: #f3d85f;
+  background: #f3d85f;
+}
+
+.sound-omission {
+  color: #6d3d35;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .disclosure {
@@ -830,9 +877,12 @@ footer {
     flex-direction: column;
   }
 
-  .sound-status {
-    align-self: flex-end;
-    margin-top: -34px;
+  .sound-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .sound-toggle {
+    justify-self: start;
   }
 
   .disclosure,

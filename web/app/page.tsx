@@ -9,10 +9,6 @@ export default function Home() {
           <h1>WildScore</h1>
           <p className="handwritten">a field log you can listen to</p>
         </div>
-        <div className="sound-status" aria-label="Sound is not available yet">
-          <span className="status-dot" aria-hidden="true" />
-          Sound off
-        </div>
       </header>
 
       <aside className="disclosure" aria-label="Saved analysis disclosure">

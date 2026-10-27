@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
+import { buildEventCues } from "../../src/audio/cue-builder";
+import { planCueWindow } from "../../src/audio/scheduler";
 import type { CandidateEvent, WildScoreBundle } from "../../src/data/bundle-schema";
 import { loadDemoBundle } from "../../src/data/load-demo";
 import {
@@ -45,12 +47,20 @@ export default function SavedAnalysisViewer() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [replayEnd, setReplayEnd] = useState<number | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [audioUnavailable, setAudioUnavailable] = useState(false);
+  const [suppressedCueCount, setSuppressedCueCount] = useState(0);
   const [reviewState, dispatchReview] = useReducer(
     reviewReducer,
     EMPTY_REVIEW_STATE,
   );
   const videoRef = useRef<HTMLVideoElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const scheduledNodesRef = useRef(new Set<OscillatorNode>());
+  const scheduleTimerRef = useRef<number | null>(null);
+  const scheduledThroughRef = useRef(0);
+  const suppressedEventIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -114,10 +124,140 @@ export default function SavedAnalysisViewer() {
   const selectedLabelReview = selectedSegment
     ? activeReviewState.label_reviews[selectedSegment.segment_id]
     : null;
+  const audioCues = useMemo(
+    () => (bundle ? buildEventCues(bundle, activeReviewState) : []),
+    [bundle, activeReviewState],
+  );
+
+  function cancelAudioSchedule() {
+    if (scheduleTimerRef.current !== null) {
+      window.clearInterval(scheduleTimerRef.current);
+      scheduleTimerRef.current = null;
+    }
+    for (const oscillator of scheduledNodesRef.current) {
+      try {
+        oscillator.stop();
+      } catch {
+        // The node may already have ended between the event and cancellation.
+      }
+    }
+    scheduledNodesRef.current.clear();
+    scheduledThroughRef.current = videoRef.current?.currentTime ?? 0;
+  }
+
+  function resetSuppressedCues() {
+    suppressedEventIdsRef.current.clear();
+    setSuppressedCueCount(0);
+  }
+
+  function scheduleAudioWindow(video: HTMLVideoElement) {
+    const context = audioContextRef.current;
+    if (
+      !soundEnabled ||
+      !context ||
+      context.state !== "running" ||
+      video.paused ||
+      video.ended ||
+      video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA
+    ) {
+      return;
+    }
+
+    const playbackRate = video.playbackRate;
+    const videoStart = Math.max(video.currentTime, scheduledThroughRef.current);
+    const videoEnd = Math.min(
+      video.duration,
+      video.currentTime + 0.45 * playbackRate,
+    );
+    if (!Number.isFinite(videoEnd) || videoEnd <= videoStart) return;
+
+    const plan = planCueWindow({
+      cues: audioCues,
+      videoStartS: videoStart,
+      videoEndS: videoEnd,
+      audioNowS:
+        context.currentTime +
+        0.025 +
+        Math.max(0, videoStart - video.currentTime) / playbackRate,
+      playbackRate,
+    });
+
+    for (const eventId of plan.suppressed_event_ids) {
+      suppressedEventIdsRef.current.add(eventId);
+    }
+    setSuppressedCueCount(suppressedEventIdsRef.current.size);
+
+    for (const note of plan.notes) {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const start = Math.max(context.currentTime + 0.005, note.audio_start_s);
+      const end = start + note.duration_s;
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(note.frequency_hz, start);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(note.gain, start + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.addEventListener(
+        "ended",
+        () => scheduledNodesRef.current.delete(oscillator),
+        { once: true },
+      );
+      scheduledNodesRef.current.add(oscillator);
+      oscillator.start(start);
+      oscillator.stop(end + 0.01);
+    }
+    scheduledThroughRef.current = videoEnd;
+  }
+
+  function startAudioSchedule(video: HTMLVideoElement) {
+    cancelAudioSchedule();
+    scheduledThroughRef.current = video.currentTime;
+    scheduleAudioWindow(video);
+    scheduleTimerRef.current = window.setInterval(
+      () => scheduleAudioWindow(video),
+      120,
+    );
+  }
+
+  async function toggleSound() {
+    if (soundEnabled) {
+      setSoundEnabled(false);
+      cancelAudioSchedule();
+      await audioContextRef.current?.suspend();
+      return;
+    }
+
+    try {
+      const context = audioContextRef.current ?? new AudioContext();
+      audioContextRef.current = context;
+      await context.resume();
+      setAudioUnavailable(false);
+      setSoundEnabled(true);
+    } catch {
+      setAudioUnavailable(true);
+      setSoundEnabled(false);
+    }
+  }
 
   useEffect(() => {
     setDraftLabel(selectedLabel?.label ?? "");
   }, [selectedLabel?.label, selectedSegment?.segment_id]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    cancelAudioSchedule();
+    if (soundEnabled && video && !video.paused) startAudioSchedule(video);
+  }, [audioCues, soundEnabled]);
+
+  useEffect(
+    () => () => {
+      cancelAudioSchedule();
+      void audioContextRef.current?.close();
+    },
+    [],
+  );
 
   function selectEvent(event: CandidateEvent) {
     setSelectedEventId(event.event_id);
@@ -125,6 +265,8 @@ export default function SavedAnalysisViewer() {
     setReplayEnd(null);
     const video = videoRef.current;
     if (video) {
+      cancelAudioSchedule();
+      resetSuppressedCues();
       video.pause();
       video.currentTime = Math.max(0, event.start_s - 0.35);
       setCurrentTime(video.currentTime);
@@ -137,6 +279,8 @@ export default function SavedAnalysisViewer() {
     if (!video) return;
     const start = Math.max(0, selectedEvent.start_s - 2);
     const end = Math.min(bundle.clip.processed_duration_s, selectedEvent.end_s + 2);
+    cancelAudioSchedule();
+    resetSuppressedCues();
     video.currentTime = start;
     setCurrentTime(start);
     setReplayEnd(end);
@@ -282,9 +426,32 @@ export default function SavedAnalysisViewer() {
                 onLoadedMetadata={(event) =>
                   setCurrentTime(event.currentTarget.currentTime)
                 }
-                onSeeked={(event) => setCurrentTime(event.currentTarget.currentTime)}
+                onPlay={(event) => {
+                  resetSuppressedCues();
+                  startAudioSchedule(event.currentTarget);
+                }}
+                onPause={cancelAudioSchedule}
+                onSeeking={cancelAudioSchedule}
+                onSeeked={(event) => {
+                  setCurrentTime(event.currentTarget.currentTime);
+                  resetSuppressedCues();
+                  if (!event.currentTarget.paused) {
+                    startAudioSchedule(event.currentTarget);
+                  }
+                }}
+                onWaiting={cancelAudioSchedule}
+                onPlaying={(event) => startAudioSchedule(event.currentTarget)}
+                onRateChange={(event) => {
+                  cancelAudioSchedule();
+                  if (!event.currentTarget.paused) {
+                    startAudioSchedule(event.currentTarget);
+                  }
+                }}
                 onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
-                onEnded={() => setReplayEnd(null)}
+                onEnded={() => {
+                  cancelAudioSchedule();
+                  setReplayEnd(null);
+                }}
               >
                 Your browser does not support HTML video.
               </video>
@@ -348,6 +515,30 @@ export default function SavedAnalysisViewer() {
               >
                 {analysisVisible ? "Hide saved analysis" : "View saved analysis"}
               </button>
+            </div>
+            <div className="sound-strip" aria-live="polite">
+              <button
+                className={soundEnabled ? "sound-toggle is-on" : "sound-toggle"}
+                type="button"
+                aria-pressed={soundEnabled}
+                onClick={() => void toggleSound()}
+              >
+                <span className="status-dot" aria-hidden="true" />
+                Sound {soundEnabled ? "on" : "off"}
+              </button>
+              <p>
+                <strong>Audio key:</strong> rising notes mark appearance proposals;
+                falling notes mark disappearances. Accepted events sound stronger.
+              </p>
+              {suppressedCueCount > 0 && (
+                <span className="sound-omission">
+                  {suppressedCueCount} crowded cue
+                  {suppressedCueCount === 1 ? "" : "s"} omitted
+                </span>
+              )}
+              {audioUnavailable && (
+                <span className="sound-omission">Audio is unavailable in this browser.</span>
+              )}
             </div>
           </div>
         </div>

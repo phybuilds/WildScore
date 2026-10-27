@@ -23,19 +23,23 @@ export function planCueWindow({
   videoEndS,
   audioNowS,
   maxVoices = 4,
+  playbackRate = 1,
 }: {
   cues: EventCue[];
   videoStartS: number;
   videoEndS: number;
   audioNowS: number;
   maxVoices?: number;
+  playbackRate?: number;
 }): CueWindowPlan {
   if (
     !Number.isFinite(videoStartS) ||
     !Number.isFinite(videoEndS) ||
     !Number.isFinite(audioNowS) ||
+    !Number.isFinite(playbackRate) ||
     videoStartS < 0 ||
-    videoEndS <= videoStartS
+    videoEndS <= videoStartS ||
+    playbackRate <= 0
   ) {
     throw new Error("Cue window must have finite, increasing times");
   }
@@ -53,8 +57,7 @@ export function planCueWindow({
         audio_start_s: Number(
           (
             audioNowS +
-            (cue.time_s - videoStartS) +
-            note.offset_s
+            (cue.time_s - videoStartS + note.offset_s) / playbackRate
           ).toFixed(6),
         ),
       })),

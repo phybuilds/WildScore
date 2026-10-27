@@ -45,6 +45,17 @@ test("video offsets are translated onto the audio clock", () => {
   assert.equal(plan.notes[0].audio_start_s, 100.3);
 });
 
+test("video offsets follow the current playback rate", () => {
+  const plan = planCueWindow({
+    cues: [cue("event", 5.2)],
+    videoStartS: 5,
+    videoEndS: 5.3,
+    audioNowS: 100,
+    playbackRate: 2,
+  });
+  assert.equal(plan.notes[0].audio_start_s, 100.15);
+});
+
 test("voice caps report every event omitted from audio", () => {
   const cues = Array.from({ length: 6 }, (_, index) =>
     cue(`event-${index}`, 1),
