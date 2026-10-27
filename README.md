@@ -1,29 +1,68 @@
 # WildScore
 
-**Turn short wildlife clips into an evidence-linked event timeline you can see, hear, review, and export.**
+WildScore is an evidence-linked review notebook for short wildlife videos. Its
+local pipeline uses Meta models to propose animal segments and reviewable labels.
+The planned public viewer will replay deliberately prepared saved results without
+API access.
 
-WildScore is an early-stage wildlife-video review tool being developed for the Meta Global AI Developer Hackathon. The planned workflow uses Meta models to propose temporal animal tracks and broad labels, then keeps a person in control of reviewing evidence and correcting proposals.
+The project is currently at the verified footage-feasibility checkpoint. A real
+private clip has completed the SAM and Spark pipeline, parser validation and
+deterministic presence/event bundle generation. Private media, raw model output
+and generated bundles are not included in this repository. The review interface
+is not built yet.
 
-The public demo will replay saved analysis rather than upload footage or run inference in the browser.
+## Security boundary
 
-## Planned core experience
+- Every model called by the WildScore processing pipeline, including offline or
+  cached-result generation, must be a Meta model.
+- `MODEL_API_KEY` is local-process-only. It must never be prefixed with `NEXT_PUBLIC_`, embedded in browser code, committed, logged, or copied into public assets.
+- Put private source media, raw model responses, and caches under the ignored `private/` directory.
+- The public viewer will be a static export. It will not contain an upload endpoint, inference proxy, API route, or model credential.
+- Do not place source footage in a public asset directory. A sanitised display
+  copy still requires a separate rights and privacy decision before publication.
 
-- Review a short wildlife clip alongside proposed animal tracks.
-- Inspect conservative candidate appearance and disappearance events.
-- Accept or reject events independently from confirming or correcting labels.
-- Replay the evidence associated with an event.
-- Hear an optional, deterministic audible event log synchronized to the video.
-- Export review decisions as an auditable CSV.
+## Current prerequisites
 
-## Current status
+- Node.js 24.22.1 and npm 11.19.1 (pinned in `.node-version` and `package.json`)
+- ffmpeg and ffprobe 8.0.3 or a later reviewed patched release (9.0.2 is the current stable release as of 26 October 2026)
 
-Project setup is in progress. No model results, evaluation results, or live demo are published yet.
+Project dependencies are exact-versioned in `package.json` and
+`package-lock.json`. `@meta-sam/parser` is the official zero-runtime-dependency
+parser used for SAM output.
 
-## Technology
+## Local feasibility commands
 
-- TypeScript
-- Next.js and React
-- Meta SAM and Muse Spark for the planned analysis pipeline
-- ffmpeg/ffprobe for local media preparation
+Install exactly what is locked, without running dependency lifecycle scripts:
 
-All public results will be based on genuine recorded model runs and will identify limitations explicitly.
+```bash
+npm ci --ignore-scripts
+```
+
+Create a private `.env.local` containing `MODEL_API_KEY`, then place a reviewed,
+sanitised analysis derivative at the private path expected by the scripts. Never
+commit either file.
+
+```bash
+npm run check:model-key
+npm run test:sam-parser
+npm run test:events
+npm run feasibility:meta
+npm run prepare:spark-evidence
+npm run feasibility:spark
+npm run build:bundle
+```
+
+The scripts use `sam-3.1` for segmentation and `muse-spark-1.3` standard mode
+for bounded label evidence. They preserve immutable machine proposals separately
+from human review corrections. Inference outputs remain private until a specific
+bundle is reviewed for publication.
+
+## Current limitations
+
+- One development clip has been tested; there is no held-out accuracy estimate.
+- Camera movement, occlusion, crowding and the model's tracking limit can produce
+  fragmented or missed segments.
+- Appearance and disappearance events are review proposals, not assertions of
+  biological entry, exit, visit count or individual identity.
+- Provider-reported usage can support cost estimates but is not a billing-ledger
+  confirmation.
