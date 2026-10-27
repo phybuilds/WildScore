@@ -6,6 +6,7 @@ import {
   createInitialReviewState,
   currentReviewedLabel,
   reviewReducer,
+  reviewedEventCount,
 } from "./review-state.ts";
 
 function fixture(): WildScoreBundle {
@@ -78,6 +79,20 @@ test("event decisions do not confirm a label", () => {
   });
   assert.equal(next.event_reviews["event-1"].decision, "accepted");
   assert.deepEqual(next.label_reviews, initial.label_reviews);
+});
+
+test("can't tell completes an event review without forcing a binary decision", () => {
+  const bundle = fixture();
+  const next = reviewReducer(createInitialReviewState(bundle), {
+    type: "decide_event",
+    event_id: "event-1",
+    decision: "uncertain",
+    reviewer: "local_reviewer",
+    reviewed_at: "2026-10-27T12:00:00.000Z",
+  });
+  assert.equal(next.event_reviews["event-1"].decision, "uncertain");
+  assert.match(next.event_reviews["event-1"].correction_note, /could not determine/u);
+  assert.equal(reviewedEventCount(next), 1);
 });
 
 test("a correction preserves the machine proposal", () => {

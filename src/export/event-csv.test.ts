@@ -47,6 +47,19 @@ test("uses the required header and retains rejected records", () => {
   assert.match(lines[1], /"rejected"/u);
 });
 
+test("exports uncertain event reviews with their explanation", () => {
+  const uncertain = reviewReducer(createInitialReviewState(bundle), {
+    type: "decide_event",
+    event_id: "event-1",
+    decision: "uncertain",
+    reviewer: "reviewer",
+    reviewed_at: "2026-10-27T12:00:00.000Z",
+  });
+  const csv = buildEventCsv(bundle, uncertain);
+  assert.match(csv, /"uncertain"/u);
+  assert.match(csv, /Reviewer could not determine this event/u);
+});
+
 test("quotes fields and neutralises editable spreadsheet formulas", () => {
   const corrected = reviewReducer(createInitialReviewState(bundle), {
     type: "review_label",

@@ -31,7 +31,7 @@ export type ReviewAction =
   | {
       type: "decide_event";
       event_id: string;
-      decision: "accepted" | "rejected";
+      decision: "accepted" | "rejected" | "uncertain";
       reviewer: string;
       reviewed_at: string;
     }
@@ -127,7 +127,10 @@ export function reviewReducer(
           decision: action.decision,
           reviewer: action.reviewer,
           reviewed_at: action.reviewed_at,
-          correction_note: "",
+          correction_note:
+            action.decision === "uncertain"
+              ? "Reviewer could not determine this event from the saved evidence."
+              : "",
         },
       },
     };

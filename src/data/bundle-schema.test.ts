@@ -37,3 +37,22 @@ test("rejects display-media path traversal", () => {
   bundle.clip.display_media = "../private/source.mp4";
   assert.throws(() => validateBundle(bundle), /invalid top-level fields/u);
 });
+
+test("accepts an uncertain stored event review", () => {
+  const bundle = {
+    ...validBundle(),
+    reviews: [
+      {
+        review_kind: "event",
+        event_id: "event-1",
+        decision: "uncertain",
+        original_value: "appearance",
+        new_value: null,
+        reviewer: "local_reviewer",
+        reviewed_at: "2026-10-27T12:00:00.000Z",
+        correction_note: "Could not determine the boundary.",
+      },
+    ],
+  };
+  assert.equal(validateBundle(bundle).reviews[0].decision, "uncertain");
+});

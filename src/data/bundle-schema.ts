@@ -1,4 +1,8 @@
-export type ReviewDecision = "proposed" | "accepted" | "rejected";
+export type ReviewDecision =
+  | "proposed"
+  | "accepted"
+  | "rejected"
+  | "uncertain";
 
 export interface GeometryRecord {
   frame_index: number;
@@ -155,7 +159,9 @@ function assertEvent(value: unknown, index: number): asserts value is CandidateE
     !isFiniteNumber(value.end_s) ||
     typeof value.boundary_evidence !== "string" ||
     !isStringArray(value.uncertainty_flags) ||
-    !["proposed", "accepted", "rejected"].includes(String(value.decision)) ||
+    !["proposed", "accepted", "rejected", "uncertain"].includes(
+      String(value.decision),
+    ) ||
     typeof value.derivation_source !== "string" ||
     typeof value.config_version !== "string"
   ) {
@@ -194,7 +200,7 @@ function assertReview(value: unknown, index: number): asserts value is StoredRev
   if (
     !kindIsValid ||
     !targetIsValid ||
-    !["accepted", "rejected"].includes(String(value.decision)) ||
+    !["accepted", "rejected", "uncertain"].includes(String(value.decision)) ||
     !isBoundedString(value.original_value, 240) ||
     !(value.new_value === null || isBoundedString(value.new_value, 240)) ||
     !isBoundedString(value.reviewer, 120) ||

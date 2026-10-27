@@ -469,6 +469,10 @@ h2 {
   text-decoration: line-through;
 }
 
+.review-status.uncertain {
+  color: #7a5b08;
+}
+
 .event-facts {
   display: grid;
   gap: 10px;
@@ -559,6 +563,12 @@ h2 {
   border-color: var(--blue);
   background: var(--blue);
   color: white;
+}
+
+.decision-row .decision-active.uncertain {
+  border-color: #7a5b08;
+  background: #f2e6a9;
+  color: #4d3a06;
 }
 
 .label-review-form {

@@ -72,7 +72,7 @@ export function buildEventCsv(
       csvCell(eventReview?.decision ?? event.decision),
       csvCell(reviewMetadata?.reviewer ?? "", true),
       csvCell(reviewMetadata?.reviewed_at ?? ""),
-      csvCell(labelReview?.correction_note ?? "", true),
+      csvCell(reviewMetadata?.correction_note ?? "", true),
       csvCell(event.config_version),
     ].join(",");
   });

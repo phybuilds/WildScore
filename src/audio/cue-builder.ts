@@ -17,7 +17,7 @@ export interface EventCue {
   segment_id: string;
   time_s: number;
   event_kind: CandidateEvent["event_kind"];
-  review_status: Exclude<ReviewDecision, "rejected">;
+  review_status: Exclude<ReviewDecision, "rejected" | "uncertain">;
   notes: CueNote[];
 }
 
@@ -45,7 +45,7 @@ export function segmentRootFrequency(segmentId: string): number {
 
 function motifForEvent(
   event: CandidateEvent,
-  reviewStatus: Exclude<ReviewDecision, "rejected">,
+  reviewStatus: Exclude<ReviewDecision, "rejected" | "uncertain">,
 ): CueNote[] {
   const root = segmentRootFrequency(event.segment_id);
   const ratios =
@@ -68,7 +68,7 @@ export function buildEventCues(
   return bundle.events.flatMap((event) => {
     const reviewStatus =
       state.event_reviews[event.event_id]?.decision ?? event.decision;
-    if (reviewStatus === "rejected") return [];
+    if (reviewStatus === "rejected" || reviewStatus === "uncertain") return [];
     return [
       {
         event_id: event.event_id,

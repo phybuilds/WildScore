@@ -63,16 +63,24 @@ test("appearance rises and disappearance falls from a stable segment root", () =
   assert.equal(segmentRootFrequency("segment-1"), segmentRootFrequency("segment-1"));
 });
 
-test("accepted cues are stronger and rejected events are silent", () => {
+test("accepted cues are stronger and rejected or uncertain events are silent", () => {
   const bundle = fixture([
     event("accepted-1", "appearance", 1),
     event("rejected-1", "disappearance", 2),
+    event("uncertain-1", "appearance", 3),
   ]);
   let state = createInitialReviewState(bundle);
   state = reviewReducer(state, {
     type: "decide_event",
     event_id: "accepted-1",
     decision: "accepted",
+    reviewer: "reviewer",
+    reviewed_at: "2026-10-27T12:00:00.000Z",
+  });
+  state = reviewReducer(state, {
+    type: "decide_event",
+    event_id: "uncertain-1",
+    decision: "uncertain",
     reviewer: "reviewer",
     reviewed_at: "2026-10-27T12:00:00.000Z",
   });

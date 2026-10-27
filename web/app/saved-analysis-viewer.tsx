@@ -353,7 +353,9 @@ export default function SavedAnalysisViewer() {
     }
   }
 
-  function decideSelectedEvent(decision: "accepted" | "rejected") {
+  function decideSelectedEvent(
+    decision: "accepted" | "rejected" | "uncertain",
+  ) {
     if (!selectedEvent) return;
     dispatchReview({
       type: "decide_event",
@@ -427,6 +429,7 @@ export default function SavedAnalysisViewer() {
       else if (key === "k") navigateEvent(-1);
       else if (key === "a") decideSelectedEvent("accepted");
       else if (key === "r") decideSelectedEvent("rejected");
+      else if (key === "u") decideSelectedEvent("uncertain");
       else if (key === "e") labelInputRef.current?.focus();
       else return;
       event.preventDefault();
@@ -747,6 +750,17 @@ export default function SavedAnalysisViewer() {
                   onClick={() => decideSelectedEvent("rejected")}
                 >
                   Reject event <span aria-hidden="true">(R)</span>
+                </button>
+                <button
+                  className={
+                    selectedEventReview?.decision === "uncertain"
+                      ? "decision-active uncertain"
+                      : undefined
+                  }
+                  type="button"
+                  onClick={() => decideSelectedEvent("uncertain")}
+                >
+                  Can’t tell <span aria-hidden="true">(U)</span>
                 </button>
               </div>
               {selectedProposal && selectedLabelReview && (
