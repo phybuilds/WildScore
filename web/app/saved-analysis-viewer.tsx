@@ -1,17 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import type { CandidateEvent, WildScoreBundle } from "../../src/data/bundle-schema";
 import { loadDemoBundle } from "../../src/data/load-demo";
 import {
   buildFrameGeometryIndex,
-  currentSegmentLabel,
   formatTime,
   frameAtTime,
   humanizeIdentifier,
   type VisibleGeometry,
 } from "../../src/data/view-model";
+import { buildEventCsv } from "../../src/export/event-csv";
+import {
+  bundleKey,
+  createInitialReviewState,
+  currentReviewedLabel,
+  reviewReducer,
+  reviewedEventCount,
+  type ReviewState,
+} from "../../src/review/review-state";
 
 type LoadState =
   | { status: "loading" }
@@ -24,17 +32,31 @@ function eventTitle(event: CandidateEvent): string {
     : "Disappearance proposal";
 }
 
+const EMPTY_REVIEW_STATE: ReviewState = {
+  bundle_key: "",
+  event_reviews: {},
+  label_reviews: {},
+};
+
 export default function SavedAnalysisViewer() {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [analysisVisible, setAnalysisVisible] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [draftLabel, setDraftLabel] = useState("");
+  const [replayEnd, setReplayEnd] = useState<number | null>(null);
+  const [reviewState, dispatchReview] = useReducer(
+    reviewReducer,
+    EMPTY_REVIEW_STATE,
+  );
   const videoRef = useRef<HTMLVideoElement>(null);
+  const labelInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     loadDemoBundle(controller.signal)
       .then((bundle) => {
+        dispatchReview({ type: "load", bundle });
         setLoadState({ status: "ready", bundle });
         setSelectedEventId(bundle.events[0]?.event_id ?? null);
       })
@@ -50,6 +72,13 @@ export default function SavedAnalysisViewer() {
   }, []);
 
   const bundle = loadState.status === "ready" ? loadState.bundle : null;
+  const activeReviewState = useMemo(
+    () =>
+      bundle && reviewState.bundle_key !== bundleKey(bundle)
+        ? createInitialReviewState(bundle)
+        : reviewState,
+    [bundle, reviewState],
+  );
   const geometryByFrame = useMemo<Map<number, VisibleGeometry[]>>(
     () => (bundle ? buildFrameGeometryIndex(bundle.segments) : new Map()),
     [bundle],
@@ -70,15 +99,30 @@ export default function SavedAnalysisViewer() {
   );
   const selectedLabel =
     bundle && selectedSegment
-      ? currentSegmentLabel(bundle, selectedSegment.segment_id)
+      ? currentReviewedLabel(
+          bundle,
+          activeReviewState,
+          selectedSegment.segment_id,
+        )
       : null;
   const selectedProposal = bundle?.label_proposals.find(
     (proposal) => proposal.segment_id === selectedSegment?.segment_id,
   );
+  const selectedEventReview = selectedEvent
+    ? activeReviewState.event_reviews[selectedEvent.event_id]
+    : null;
+  const selectedLabelReview = selectedSegment
+    ? activeReviewState.label_reviews[selectedSegment.segment_id]
+    : null;
+
+  useEffect(() => {
+    setDraftLabel(selectedLabel?.label ?? "");
+  }, [selectedLabel?.label, selectedSegment?.segment_id]);
 
   function selectEvent(event: CandidateEvent) {
     setSelectedEventId(event.event_id);
     setAnalysisVisible(true);
+    setReplayEnd(null);
     const video = videoRef.current;
     if (video) {
       video.pause();
@@ -87,9 +131,107 @@ export default function SavedAnalysisViewer() {
     }
   }
 
-  function jumpToSelectedEvent() {
-    if (selectedEvent) selectEvent(selectedEvent);
+  function replaySelectedEvent() {
+    if (!selectedEvent || !bundle) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const start = Math.max(0, selectedEvent.start_s - 2);
+    const end = Math.min(bundle.clip.processed_duration_s, selectedEvent.end_s + 2);
+    video.currentTime = start;
+    setCurrentTime(start);
+    setReplayEnd(end);
+    void video.play().catch(() => setReplayEnd(null));
   }
+
+  function handleTimeUpdate(video: HTMLVideoElement) {
+    setCurrentTime(video.currentTime);
+    if (replayEnd !== null && video.currentTime >= replayEnd) {
+      video.pause();
+      setReplayEnd(null);
+    }
+  }
+
+  function decideSelectedEvent(decision: "accepted" | "rejected") {
+    if (!selectedEvent) return;
+    dispatchReview({
+      type: "decide_event",
+      event_id: selectedEvent.event_id,
+      decision,
+      reviewer: "local_reviewer",
+      reviewed_at: new Date().toISOString(),
+    });
+  }
+
+  function saveLabel(value: string, correctionNote: string) {
+    if (!selectedSegment || !selectedLabelReview) return;
+    const normalized = value.trim().slice(0, 120);
+    if (!normalized) return;
+    dispatchReview({
+      type: "review_label",
+      segment_id: selectedSegment.segment_id,
+      value: normalized,
+      reviewer: "local_reviewer",
+      reviewed_at: new Date().toISOString(),
+      correction_note: correctionNote,
+    });
+  }
+
+  function navigateEvent(direction: -1 | 1) {
+    if (!bundle || bundle.events.length === 0) return;
+    const currentIndex = bundle.events.findIndex(
+      (event) => event.event_id === selectedEventId,
+    );
+    const nextIndex = Math.min(
+      bundle.events.length - 1,
+      Math.max(0, currentIndex + direction),
+    );
+    selectEvent(bundle.events[nextIndex]);
+  }
+
+  function downloadCsv() {
+    if (!bundle) return;
+    const blob = new Blob([buildEventCsv(bundle, activeReviewState)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${bundle.clip.clip_id}-wildscore-events.csv`;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  function resetReviews() {
+    if (!bundle) return;
+    dispatchReview({ type: "reset", bundle });
+  }
+
+  useEffect(() => {
+    if (!bundle) return;
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "j") navigateEvent(1);
+      else if (key === "k") navigateEvent(-1);
+      else if (key === "a") decideSelectedEvent("accepted");
+      else if (key === "r") decideSelectedEvent("rejected");
+      else if (key === "e") labelInputRef.current?.focus();
+      else return;
+      event.preventDefault();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  });
 
   if (loadState.status !== "ready") {
     return (
@@ -141,9 +283,8 @@ export default function SavedAnalysisViewer() {
                   setCurrentTime(event.currentTarget.currentTime)
                 }
                 onSeeked={(event) => setCurrentTime(event.currentTarget.currentTime)}
-                onTimeUpdate={(event) =>
-                  setCurrentTime(event.currentTarget.currentTime)
-                }
+                onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
+                onEnded={() => setReplayEnd(null)}
               >
                 Your browser does not support HTML video.
               </video>
@@ -156,8 +297,9 @@ export default function SavedAnalysisViewer() {
                 {visibleGeometry.map((geometry) => {
                   const isSelected =
                     geometry.segment_id === selectedEvent?.segment_id;
-                  const label = currentSegmentLabel(
+                  const label = currentReviewedLabel(
                     readyBundle,
+                    activeReviewState,
                     geometry.segment_id,
                   );
                   const width = geometry.box.right - geometry.box.left;
@@ -220,6 +362,9 @@ export default function SavedAnalysisViewer() {
               <p className="event-time">
                 {formatTime(selectedEvent.start_s)} · {selectedSegment.segment_id}
               </p>
+              <p className={`review-status ${selectedEventReview?.decision ?? "proposed"}`}>
+                Event {selectedEventReview?.decision ?? "proposed"}
+              </p>
               <p className="review-copy">
                 The saved detections {selectedEvent.event_kind === "appearance"
                   ? "begin"
@@ -253,15 +398,92 @@ export default function SavedAnalysisViewer() {
                     .join(", ")}.
                 </p>
               )}
-              <button className="wide-button" type="button" onClick={jumpToSelectedEvent}>
-                Jump to evidence
+              <button className="wide-button" type="button" onClick={replaySelectedEvent}>
+                Replay 2 seconds either side
               </button>
               <div className="decision-row">
-                <button type="button" disabled>Accept event</button>
-                <button type="button" disabled>Reject event</button>
+                <button
+                  className={
+                    selectedEventReview?.decision === "accepted"
+                      ? "decision-active"
+                      : undefined
+                  }
+                  type="button"
+                  onClick={() => decideSelectedEvent("accepted")}
+                >
+                  Accept event <span aria-hidden="true">(A)</span>
+                </button>
+                <button
+                  className={
+                    selectedEventReview?.decision === "rejected"
+                      ? "decision-active"
+                      : undefined
+                  }
+                  type="button"
+                  onClick={() => decideSelectedEvent("rejected")}
+                >
+                  Reject event <span aria-hidden="true">(R)</span>
+                </button>
+              </div>
+              {selectedProposal && selectedLabelReview && (
+                <form
+                  className="label-review-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    saveLabel(draftLabel, "Corrected during local review.");
+                  }}
+                >
+                  <label htmlFor="label-correction">Correct or confirm label</label>
+                  <input
+                    id="label-correction"
+                    ref={labelInputRef}
+                    value={draftLabel}
+                    maxLength={120}
+                    autoComplete="off"
+                    onChange={(event) => setDraftLabel(event.target.value)}
+                  />
+                  <div className="label-actions">
+                    <button type="submit">Save correction</button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        saveLabel(
+                          selectedLabel.label,
+                          "Confirmed during local review.",
+                        )
+                      }
+                    >
+                      Confirm current
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftLabel("unknown");
+                        saveLabel(
+                          "unknown",
+                          "Reviewer selected can't tell.",
+                        );
+                      }}
+                    >
+                      Can’t tell
+                    </button>
+                  </div>
+                  <p>
+                    Label review: {selectedLabelReview.decision}. The original{" "}
+                    {humanizeIdentifier(selectedProposal.label_id)} proposal is preserved.
+                  </p>
+                </form>
+              )}
+              <div className="review-navigation">
+                <button type="button" onClick={() => navigateEvent(-1)}>
+                  Previous <span aria-hidden="true">(K)</span>
+                </button>
+                <button type="button" onClick={() => navigateEvent(1)}>
+                  Next <span aria-hidden="true">(J)</span>
+                </button>
               </div>
               <p className="small-note">
-                Event decisions are intentionally disabled until the review-state milestone.
+                Event and label reviews are separate. Refresh resets this in-memory session.
               </p>
             </>
           ) : (
@@ -276,7 +498,9 @@ export default function SavedAnalysisViewer() {
             <p className="eyebrow">Temporal evidence</p>
             <h2 id="timeline-heading">Log of events</h2>
           </div>
-          <span className="handwritten">presence first, claims second</span>
+          <span className="handwritten">
+            {reviewedEventCount(activeReviewState)} of {readyBundle.events.length} events reviewed
+          </span>
         </div>
         <div className="timeline-scale" aria-hidden="true">
           <span>0:00</span>
@@ -285,7 +509,11 @@ export default function SavedAnalysisViewer() {
         </div>
         <div className="timeline-list">
           {readyBundle.segments.map((segment) => {
-            const label = currentSegmentLabel(readyBundle, segment.segment_id);
+            const label = currentReviewedLabel(
+              readyBundle,
+              activeReviewState,
+              segment.segment_id,
+            );
             const events = readyBundle.events.filter(
               (event) => event.segment_id === segment.segment_id,
             );
@@ -307,6 +535,9 @@ export default function SavedAnalysisViewer() {
                   {events.map((event) => (
                     <button
                       className={`event-marker ${event.event_kind} ${
+                        activeReviewState.event_reviews[event.event_id]?.decision ??
+                        event.decision
+                      } ${
                         event.event_id === selectedEventId ? "is-selected" : ""
                       }`}
                       key={event.event_id}
@@ -334,6 +565,72 @@ export default function SavedAnalysisViewer() {
         <p className="timeline-note">
           Rows are gap-free segments, not persistent animal identities. Geometry remains visible
           regardless of later event decisions.
+        </p>
+      </section>
+
+      <section className="event-table-section" aria-labelledby="event-table-heading">
+        <div className="section-heading compact">
+          <div>
+            <p className="eyebrow">Auditable export</p>
+            <h2 id="event-table-heading">Event table</h2>
+          </div>
+          <div className="table-actions">
+            <button type="button" onClick={resetReviews}>Reset reviews</button>
+            <button className="primary-action" type="button" onClick={downloadCsv}>
+              Download CSV
+            </button>
+          </div>
+        </div>
+        <div className="event-table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Event</th>
+                <th>Segment</th>
+                <th>Current label</th>
+                <th>Event status</th>
+                <th>Label status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {readyBundle.events.map((event) => {
+                const label = currentReviewedLabel(
+                  readyBundle,
+                  activeReviewState,
+                  event.segment_id,
+                );
+                return (
+                  <tr key={event.event_id}>
+                    <td>{formatTime(event.start_s)}</td>
+                    <td>
+                      <button
+                        className="table-event-button"
+                        type="button"
+                        onClick={() => selectEvent(event)}
+                      >
+                        {humanizeIdentifier(event.event_kind)}
+                      </button>
+                    </td>
+                    <td>{event.segment_id}</td>
+                    <td>{humanizeIdentifier(label.label)}</td>
+                    <td>
+                      {activeReviewState.event_reviews[event.event_id]?.decision ??
+                        event.decision}
+                    </td>
+                    <td>
+                      {activeReviewState.label_reviews[event.segment_id]?.decision ??
+                        "proposed"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="timeline-note">
+          CSV includes every proposal, including rejected and unreviewed records. It is a
+          WildScore event export, not a Camtrap DP package.
         </p>
       </section>
     </>

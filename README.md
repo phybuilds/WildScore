@@ -2,14 +2,15 @@
 
 WildScore is an evidence-linked review notebook for short wildlife videos. Its
 local pipeline uses Meta models to propose animal segments and reviewable labels.
-The planned public viewer will replay deliberately prepared saved results without
-API access.
+The static viewer replays deliberately prepared saved results without API access.
 
-The project is currently at the verified footage-feasibility checkpoint. A real
-private clip has completed the SAM and Spark pipeline, parser validation and
-deterministic presence/event bundle generation. Private media, raw model output
-and generated bundles are not included in this repository. The review interface
-is not built yet.
+The project has a verified single-clip feasibility run and a working local
+saved-result review loop. A real private clip completed the SAM and Spark
+pipeline, parser validation and deterministic presence/event bundle generation.
+The viewer synchronises saved geometry with video, keeps event and label reviews
+independent, replays evidence and exports every proposal to CSV with its review
+status. Private media, raw model output and generated bundles are not included in
+this repository.
 
 ## Security boundary
 
@@ -17,7 +18,8 @@ is not built yet.
   cached-result generation, must be a Meta model.
 - `MODEL_API_KEY` is local-process-only. It must never be prefixed with `NEXT_PUBLIC_`, embedded in browser code, committed, logged, or copied into public assets.
 - Put private source media, raw model responses, and caches under the ignored `private/` directory.
-- The public viewer will be a static export. It will not contain an upload endpoint, inference proxy, API route, or model credential.
+- The viewer is a static export. It contains no upload endpoint, inference proxy,
+  API route or model credential.
 - Do not place source footage in a public asset directory. A sanitised display
   copy still requires a separate rights and privacy decision before publication.
 
@@ -56,6 +58,26 @@ The scripts use `sam-3.1` for segmentation and `muse-spark-1.3` standard mode
 for bounded label evidence. They preserve immutable machine proposals separately
 from human review corrections. Inference outputs remain private until a specific
 bundle is reviewed for publication.
+
+## Local viewer
+
+The repository intentionally contains no footage or generated result bundle. If
+reviewed local demo assets exist in the ignored private workspace, prepare the
+ignored viewer copies, run the complete test suite and start the loopback-only
+development server:
+
+```bash
+npm run demo:prepare
+npm test
+npm run typecheck
+npm run build
+npm run dev
+```
+
+The viewer validates the saved bundle before use. Review changes stay in memory;
+refreshing the page restores the immutable stored bundle. CSV export retains
+proposed, accepted and rejected events and neutralises spreadsheet-formula
+prefixes in editable fields.
 
 ## Current limitations
 
