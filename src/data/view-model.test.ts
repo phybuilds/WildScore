@@ -11,7 +11,10 @@ import {
 
 test("maps video time to a bounded processed frame", () => {
   assert.equal(frameAtTime(-1, 10, 205), 0);
-  assert.equal(frameAtTime(10.29, 10, 205), 102);
+  assert.equal(frameAtTime(10.24, 10, 205), 102);
+  assert.equal(frameAtTime(10.26, 10, 205), 103);
+  assert.equal(frameAtTime(16.4 - 1e-3, 10, 205), 164);
+  assert.equal(frameAtTime(16.34, 10, 205), 163);
   assert.equal(frameAtTime(99, 10, 205), 204);
 });
 

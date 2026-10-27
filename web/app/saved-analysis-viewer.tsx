@@ -63,6 +63,7 @@ export default function SavedAnalysisViewer() {
   const masterGainRef = useRef<GainNode | null>(null);
   const scheduledNodesRef = useRef(new Set<OscillatorNode>());
   const scheduleTimerRef = useRef<number | null>(null);
+  const videoFrameCallbackRef = useRef<number | null>(null);
   const scheduledThroughRef = useRef(0);
   const suppressedEventIdsRef = useRef(new Set<string>());
 
@@ -159,6 +160,40 @@ export default function SavedAnalysisViewer() {
   function resetSuppressedCues() {
     suppressedEventIdsRef.current.clear();
     setSuppressedCueCount(0);
+  }
+
+  function stopVideoFrameSync(video: HTMLVideoElement | null) {
+    if (
+      video &&
+      videoFrameCallbackRef.current !== null &&
+      typeof video.cancelVideoFrameCallback === "function"
+    ) {
+      video.cancelVideoFrameCallback(videoFrameCallbackRef.current);
+    }
+    videoFrameCallbackRef.current = null;
+  }
+
+  function startVideoFrameSync(video: HTMLVideoElement) {
+    stopVideoFrameSync(video);
+    setCurrentTime(video.currentTime);
+    if (typeof video.requestVideoFrameCallback !== "function") return;
+
+    const updateFromDisplayedFrame: VideoFrameRequestCallback = (
+      _now,
+      metadata,
+    ) => {
+      setCurrentTime(metadata.mediaTime);
+      if (!video.paused && !video.ended) {
+        videoFrameCallbackRef.current = video.requestVideoFrameCallback(
+          updateFromDisplayedFrame,
+        );
+      } else {
+        videoFrameCallbackRef.current = null;
+      }
+    };
+    videoFrameCallbackRef.current = video.requestVideoFrameCallback(
+      updateFromDisplayedFrame,
+    );
   }
 
   function scheduleAudioWindow(video: HTMLVideoElement) {
@@ -283,6 +318,7 @@ export default function SavedAnalysisViewer() {
   useEffect(
     () => () => {
       cancelAudioSchedule();
+      stopVideoFrameSync(videoRef.current);
       void audioContextRef.current?.close();
     },
     [],
@@ -490,18 +526,33 @@ export default function SavedAnalysisViewer() {
                 onPlay={(event) => {
                   resetSuppressedCues();
                   startAudioSchedule(event.currentTarget);
+                  startVideoFrameSync(event.currentTarget);
                 }}
-                onPause={cancelAudioSchedule}
-                onSeeking={cancelAudioSchedule}
+                onPause={(event) => {
+                  cancelAudioSchedule();
+                  stopVideoFrameSync(event.currentTarget);
+                  setCurrentTime(event.currentTarget.currentTime);
+                }}
+                onSeeking={(event) => {
+                  cancelAudioSchedule();
+                  stopVideoFrameSync(event.currentTarget);
+                }}
                 onSeeked={(event) => {
                   setCurrentTime(event.currentTarget.currentTime);
                   resetSuppressedCues();
                   if (!event.currentTarget.paused) {
                     startAudioSchedule(event.currentTarget);
+                    startVideoFrameSync(event.currentTarget);
                   }
                 }}
-                onWaiting={cancelAudioSchedule}
-                onPlaying={(event) => startAudioSchedule(event.currentTarget)}
+                onWaiting={(event) => {
+                  cancelAudioSchedule();
+                  stopVideoFrameSync(event.currentTarget);
+                }}
+                onPlaying={(event) => {
+                  startAudioSchedule(event.currentTarget);
+                  startVideoFrameSync(event.currentTarget);
+                }}
                 onRateChange={(event) => {
                   cancelAudioSchedule();
                   if (!event.currentTarget.paused) {
@@ -511,6 +562,7 @@ export default function SavedAnalysisViewer() {
                 onTimeUpdate={(event) => handleTimeUpdate(event.currentTarget)}
                 onEnded={() => {
                   cancelAudioSchedule();
+                  stopVideoFrameSync(videoRef.current);
                   setReplayEnd(null);
                 }}
               >

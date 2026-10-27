@@ -15,9 +15,10 @@ export function frameAtTime(
   frameCount: number,
 ): number {
   if (fps <= 0 || frameCount <= 0) return 0;
+  const framePosition = Math.max(0, currentTime) * fps;
   return Math.min(
     frameCount - 1,
-    Math.max(0, Math.floor(Math.max(0, currentTime) * fps)),
+    Math.max(0, Math.round(framePosition)),
   );
 }
 
