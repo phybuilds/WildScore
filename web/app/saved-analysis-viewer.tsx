@@ -45,6 +45,7 @@ export default function SavedAnalysisViewer() {
   const [analysisVisible, setAnalysisVisible] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [replayEnd, setReplayEnd] = useState<number | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -71,6 +72,9 @@ export default function SavedAnalysisViewer() {
         dispatchReview({ type: "load", bundle });
         setLoadState({ status: "ready", bundle });
         setSelectedEventId(bundle.events[0]?.event_id ?? null);
+        setSelectedSegmentId(
+          bundle.events[0]?.segment_id ?? bundle.segments[0]?.segment_id ?? null,
+        );
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -103,11 +107,14 @@ export default function SavedAnalysisViewer() {
       )
     : 0;
   const visibleGeometry = geometryByFrame.get(currentFrame) ?? [];
+  const selectedGeometry = visibleGeometry.filter(
+    (geometry) => geometry.segment_id === selectedSegmentId,
+  );
   const selectedEvent = bundle?.events.find(
     (event) => event.event_id === selectedEventId,
   );
   const selectedSegment = bundle?.segments.find(
-    (segment) => segment.segment_id === selectedEvent?.segment_id,
+    (segment) => segment.segment_id === selectedSegmentId,
   );
   const selectedLabel =
     bundle && selectedSegment
@@ -281,6 +288,7 @@ export default function SavedAnalysisViewer() {
 
   function selectEvent(event: CandidateEvent) {
     setSelectedEventId(event.event_id);
+    setSelectedSegmentId(event.segment_id);
     setAnalysisVisible(true);
     setReplayEnd(null);
     const video = videoRef.current;
@@ -289,6 +297,32 @@ export default function SavedAnalysisViewer() {
       resetSuppressedCues();
       video.pause();
       video.currentTime = Math.max(0, event.start_s - 0.35);
+      setCurrentTime(video.currentTime);
+    }
+  }
+
+  function selectSegment(segmentId: string) {
+    if (!bundle) return;
+    const segment = bundle.segments.find(
+      (candidate) => candidate.segment_id === segmentId,
+    );
+    if (!segment) return;
+    const firstEvent = bundle.events
+      .filter((event) => event.segment_id === segmentId)
+      .sort((left, right) => left.start_s - right.start_s)[0];
+    setSelectedSegmentId(segmentId);
+    setSelectedEventId(firstEvent?.event_id ?? null);
+    setAnalysisVisible(true);
+    setReplayEnd(null);
+    const video = videoRef.current;
+    if (video) {
+      cancelAudioSchedule();
+      resetSuppressedCues();
+      video.pause();
+      video.currentTime = Math.max(
+        0,
+        (firstEvent?.start_s ?? segment.start_s) - 0.35,
+      );
       setCurrentTime(video.currentTime);
     }
   }
@@ -481,9 +515,7 @@ export default function SavedAnalysisViewer() {
                 preserveAspectRatio="xMidYMid meet"
                 aria-hidden="true"
               >
-                {visibleGeometry.map((geometry) => {
-                  const isSelected =
-                    geometry.segment_id === selectedEvent?.segment_id;
+                {selectedGeometry.map((geometry) => {
                   const label = currentReviewedLabel(
                     readyBundle,
                     activeReviewState,
@@ -493,7 +525,7 @@ export default function SavedAnalysisViewer() {
                   const height = geometry.box.bottom - geometry.box.top;
                   return (
                     <g
-                      className={isSelected ? "selected-geometry" : undefined}
+                      className="selected-geometry"
                       key={`${geometry.segment_id}:${geometry.frame_index}`}
                     >
                       <rect
@@ -517,8 +549,9 @@ export default function SavedAnalysisViewer() {
               </svg>
               {analysisVisible && (
                 <div className="frame-readout" aria-live="off">
-                  Frame {currentFrame} · {visibleGeometry.length} visible segment
-                  {visibleGeometry.length === 1 ? "" : "s"}
+                  Frame {currentFrame} · {selectedGeometry.length > 0
+                    ? `following ${selectedSegmentId}`
+                    : "selected segment not visible"}
                 </div>
               )}
             </div>
@@ -535,6 +568,34 @@ export default function SavedAnalysisViewer() {
               >
                 {analysisVisible ? "Hide saved analysis" : "View saved analysis"}
               </button>
+            </div>
+            <div className="segment-focus-bar">
+              <label htmlFor="segment-focus">Follow segment</label>
+              <select
+                id="segment-focus"
+                value={selectedSegmentId ?? ""}
+                onChange={(event) => selectSegment(event.currentTarget.value)}
+              >
+                {[...readyBundle.segments]
+                  .sort(
+                    (left, right) =>
+                      left.start_s - right.start_s ||
+                      left.segment_id.localeCompare(right.segment_id),
+                  )
+                  .map((segment) => {
+                    const label = currentReviewedLabel(
+                      readyBundle,
+                      activeReviewState,
+                      segment.segment_id,
+                    );
+                    return (
+                      <option value={segment.segment_id} key={segment.segment_id}>
+                        {segment.segment_id} · {humanizeIdentifier(label.label)} · {formatTime(segment.start_s)}–{formatTime(segment.end_s)}
+                      </option>
+                    );
+                  })}
+              </select>
+              <span>Only this segment’s saved box is shown.</span>
             </div>
             <div className="sound-strip" aria-live="polite">
               <div className="sound-controls">
@@ -597,6 +658,11 @@ export default function SavedAnalysisViewer() {
                   ? "begin"
                   : "end"} here. This is a review proposal, not proof that the
                 animal entered or left the scene.
+              </p>
+              <p className="occlusion-guidance">
+                Reject a boundary caused only by brief occlusion, crowding or a
+                tracker restart. Hiding behind another animal is not, by itself,
+                an appearance or disappearance.
               </p>
               <dl className="event-facts">
                 <div>
