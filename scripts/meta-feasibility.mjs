@@ -5,43 +5,21 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { parseAndSummariseSamEvents } from "./lib/sam-output.mjs";
+import { resolveSamRunConfig } from "./lib/sam-run-config.mjs";
 
 const execFileAsync = promisify(execFile);
 const API_BASE = "https://api.meta.ai/v1";
-const allowedArguments = new Set([
-  "--fps=10", "--fps=15", "--prompt=animal", "--prompt=antelope",
-  "--prompt=hippopotamus",
-]);
-const argumentsList = process.argv.slice(2);
-const unknownArguments = argumentsList.filter((argument) => !allowedArguments.has(argument));
-const fpsArguments = argumentsList.filter((argument) => argument.startsWith("--fps="));
-const promptArguments = argumentsList.filter((argument) => argument.startsWith("--prompt="));
-if (unknownArguments.length > 0 || fpsArguments.length > 1 || promptArguments.length > 1) {
-  throw new Error(
-    "Usage: node scripts/meta-feasibility.mjs [--fps=10|--fps=15] [--prompt=animal|antelope|hippopotamus]",
-  );
-}
-const ANALYSIS_FPS = Number(fpsArguments[0]?.split("=")[1] ?? 10);
-const PROMPT = promptArguments[0]?.split("=")[1] ?? "animal";
-if (PROMPT !== "animal" && ANALYSIS_FPS !== 15) {
-  throw new Error("Targeted recall experiments must use the approved 15 fps derivative.");
-}
-const MEDIA_FILE_NAME = `clip-01-analysis-${ANALYSIS_FPS}fps.mp4`;
+const runConfig = resolveSamRunConfig(process.argv.slice(2));
+const {
+  clipId: CLIP_ID,
+  analysisFps: ANALYSIS_FPS,
+  prompt: PROMPT,
+  mediaFileName: MEDIA_FILE_NAME,
+  runPurpose: RUN_PURPOSE,
+} = runConfig;
 const MEDIA_PATH = path.resolve("private/derived", MEDIA_FILE_NAME);
 const MEDIA_ROOT = path.resolve("private/derived");
-const RUNS_ROOT = path.resolve(
-  PROMPT !== "animal"
-    ? `private/model-experiments/sam-targeted-recall/${PROMPT}`
-    : ANALYSIS_FPS === 10
-    ? "private/model-runs"
-    : "private/model-experiments/sam-temporal-15fps",
-);
-const RUN_PURPOSE =
-  PROMPT !== "animal"
-    ? "targeted_recall_experiment"
-    : ANALYSIS_FPS === 10
-      ? "hero_feasibility"
-      : "temporal_sampling_experiment";
+const RUNS_ROOT = path.resolve(runConfig.runsRoot);
 const SAM_MODEL = "sam-3.1";
 const MAX_BYTES = 100 * 1024 * 1024;
 const MAX_DURATION_SECONDS = 60;
@@ -292,6 +270,7 @@ async function main() {
 
     await saveJson(path.join(runDirectory, "sam-summary.json"), {
       status: "completed",
+      clip_id: CLIP_ID,
       run_purpose: RUN_PURPOSE,
       analysis_fps: ANALYSIS_FPS,
       provider: "Meta Model API",
