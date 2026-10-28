@@ -37,7 +37,6 @@ import {
   recoveryBundleKey,
   recoveryReviewReducer,
   reviewedRecoveryCount,
-  reviewedRecoveryLabelCount,
   type RecoveryReviewState,
 } from "../../src/review/recovery-state";
 
@@ -148,6 +147,8 @@ export default function SavedAnalysisViewer() {
     EMPTY_RECOVERY_REVIEW_STATE,
   );
   const videoRef = useRef<HTMLVideoElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const recoveryMenuRef = useRef<HTMLDetailsElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
@@ -554,6 +555,15 @@ export default function SavedAnalysisViewer() {
     [],
   );
 
+  function focusWorkbench() {
+    window.requestAnimationFrame(() => {
+      workspaceRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
+
   function selectEvent(event: CandidateEvent) {
     setSelectedRecoveryId(null);
     setSelectedEventId(event.event_id);
@@ -580,6 +590,7 @@ export default function SavedAnalysisViewer() {
       video.currentTime = anchor;
       setCurrentTime(video.currentTime);
     }
+    focusWorkbench();
   }
 
   function selectSegment(segmentId: string) {
@@ -627,9 +638,15 @@ export default function SavedAnalysisViewer() {
       cancelAudioSchedule();
       resetSuppressedCues();
       video.pause();
-      video.currentTime = candidate.start_s;
+      const firstFrame = candidate.geometry[0]?.frame_index;
+      video.currentTime =
+        firstFrame === undefined || !recovery
+          ? candidate.start_s
+          : firstFrame / recovery.processed_fps;
       setCurrentTime(video.currentTime);
     }
+    if (recoveryMenuRef.current) recoveryMenuRef.current.open = false;
+    focusWorkbench();
   }
 
   function replaySelectedEvent() {
@@ -1006,12 +1023,70 @@ export default function SavedAnalysisViewer() {
     </section>
   );
 
+  const recoveryAuditMenu = (
+    <details className="recovery-menu" ref={recoveryMenuRef}>
+      <summary>
+        <span>
+          <strong>Targeted recovery audit</strong>
+          <small>Review supplemental SAM tracks</small>
+        </span>
+        <span className="handwritten">
+          {reviewedRecoveryCount(activeRecoveryReviewState)}/
+          {loadState.recovery.candidates.length}
+        </span>
+      </summary>
+      <div className="recovery-menu-panel">
+        <p>
+          These prompt-specific tracks remain separate from the saved event log.
+          Keeping one records useful evidence; it does not merge animal identities.
+        </p>
+        <div className="recovery-grid">
+          {loadState.recovery.candidates.map((candidate) => {
+            const decision =
+              activeRecoveryReviewState.decisions[candidate.candidate_id];
+            return (
+              <button
+                className={`recovery-card ${decision} ${
+                  candidate.candidate_id === selectedRecoveryId
+                    ? "is-selected"
+                    : ""
+                }`}
+                key={candidate.candidate_id}
+                type="button"
+                aria-pressed={candidate.candidate_id === selectedRecoveryId}
+                onClick={() => selectRecoveryCandidate(candidate)}
+              >
+                <span>{humanizeIdentifier(candidate.suggested_label)}</span>
+                <strong>{candidate.candidate_id}</strong>
+                <small>
+                  {formatTime(candidate.start_s)}–{formatTime(candidate.end_s)} · {decision}
+                </small>
+              </button>
+            );
+          })}
+        </div>
+        <div className="recovery-menu-actions">
+          <button type="button" onClick={resetRecoveryReviews}>
+            Reset reviews
+          </button>
+          <button type="button" onClick={downloadRecoveryCsv}>
+            Download recovery CSV
+          </button>
+        </div>
+      </div>
+    </details>
+  );
+
   return (
     <>
       <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
         {announcement}
       </p>
-      <section className="workspace" aria-labelledby="workspace-heading">
+      <section
+        className="workspace"
+        aria-labelledby="workspace-heading"
+        ref={workspaceRef}
+      >
         <div className="media-column">
           <div className="section-heading">
             <div>
@@ -1267,12 +1342,18 @@ export default function SavedAnalysisViewer() {
                   </label>
                 </fieldset>
               </div>
-              <p>
-                <strong>Audio key:</strong> bright rising notes mark appearances;
-                lower fading notes mark disappearances. Stereo position follows the
-                saved box location. Accepted events sound stronger; rejected and
-                can’t-tell events are silent.
-              </p>
+              <details className="help-disclosure">
+                <summary title="Audio cue guide">
+                  <span aria-hidden="true">i</span>
+                  Audio cue guide
+                </summary>
+                <p>
+                  Bright rising notes mark appearances; lower fading notes mark
+                  disappearances. Stereo position follows the saved box location.
+                  Accepted events sound stronger; rejected and can’t-tell events are
+                  silent.
+                </p>
+              </details>
               {suppressedCueCount > 0 && (
                 <span className="sound-omission">
                   {suppressedCueCount} crowded cue
@@ -1288,6 +1369,7 @@ export default function SavedAnalysisViewer() {
 
         <div className="workbench-side">
         <aside className="review-sheet" aria-labelledby="review-heading">
+          {recoveryAuditMenu}
           <p className="eyebrow">
             {selectedRecovery ? "Recovery candidate" : "Evidence selected"}
           </p>
@@ -1306,14 +1388,23 @@ export default function SavedAnalysisViewer() {
               <p className={`review-status ${activeRecoveryReviewState.decisions[selectedRecovery.candidate_id]}`}>
                 Candidate {activeRecoveryReviewState.decisions[selectedRecovery.candidate_id]}
               </p>
-              <p className="review-copy">
-                A targeted Meta SAM pass recovered this track after the generic pass
-                missed it. It has not been merged into the saved analysis.
-              </p>
-              <p className="review-instruction">
-                Keep it only if the box follows one visible animal. This decision does
-                not confirm an entry, exit, individual identity, or species label.
-              </p>
+              <details className="help-disclosure review-help">
+                <summary title="Recovery review guidance">
+                  <span aria-hidden="true">i</span>
+                  Review guidance
+                </summary>
+                <div>
+                  <p className="review-copy">
+                    A targeted Meta SAM pass recovered this track after the generic
+                    pass missed it. It has not been merged into the saved analysis.
+                  </p>
+                  <p className="review-instruction">
+                    Keep it only if the box follows one visible animal. This decision
+                    does not confirm an entry, exit, individual identity, or species
+                    label.
+                  </p>
+                </div>
+              </details>
               <dl className="event-facts">
                 <div>
                   <dt>Prompt</dt>
@@ -1424,23 +1515,31 @@ export default function SavedAnalysisViewer() {
               <p className={`review-status ${selectedEventReview?.decision ?? "proposed"}`}>
                 Event {selectedEventReview?.decision ?? "proposed"}
               </p>
-              <p className="review-copy">
-                The saved detections {selectedEvent.event_kind === "appearance"
-                  ? "begin"
-                  : "end"} here. This is a review proposal, not proof that the
-                animal entered or left the scene.
-              </p>
-              <p className="review-instruction">
-                Review this event proposal—not the segment itself. If tracking
-                starts after an animal was already visible, reject the appearance.
-                If no box is visible at the boundary, replay the surrounding clip;
-                choose can’t tell only when the evidence remains unclear.
-              </p>
-              <p className="occlusion-guidance">
-                Reject a boundary caused only by brief occlusion, crowding or a
-                tracker restart. Hiding behind another animal is not, by itself,
-                an appearance or disappearance.
-              </p>
+              <details className="help-disclosure review-help">
+                <summary title="Event review guidance">
+                  <span aria-hidden="true">i</span>
+                  Review guidance
+                </summary>
+                <div>
+                  <p className="review-copy">
+                    The saved detections {selectedEvent.event_kind === "appearance"
+                      ? "begin"
+                      : "end"} here. This is a review proposal, not proof that the
+                    animal entered or left the scene.
+                  </p>
+                  <p className="review-instruction">
+                    Review this event proposal—not the segment itself. If tracking
+                    starts after an animal was already visible, reject the appearance.
+                    If no box is visible at the boundary, replay the surrounding clip;
+                    choose can’t tell only when the evidence remains unclear.
+                  </p>
+                  <p className="occlusion-guidance">
+                    Reject a boundary caused only by brief occlusion, crowding or a
+                    tracker restart. Hiding behind another animal is not, by itself,
+                    an appearance or disappearance.
+                  </p>
+                </div>
+              </details>
               <dl className="event-facts">
                 <div>
                   <dt>Current label</dt>
@@ -1576,69 +1675,6 @@ export default function SavedAnalysisViewer() {
         </div>
       </section>
 
-      <details className="recovery-disclosure">
-        <summary>
-          <span>
-            <strong>Targeted recovery audit</strong>
-            <small>Supplemental tracks from separate, prompt-specific SAM runs</small>
-          </span>
-          <span className="handwritten">
-            {reviewedRecoveryCount(activeRecoveryReviewState)} of {loadState.recovery.candidates.length} reviewed
-          </span>
-        </summary>
-      <section className="recovery-section" aria-labelledby="recovery-heading">
-        <div className="section-heading compact">
-          <div>
-            <p className="eyebrow">Targeted recovery · not merged</p>
-            <h2 id="recovery-heading">Additional tracks for human review</h2>
-          </div>
-          <span className="handwritten">
-            {reviewedRecoveryCount(activeRecoveryReviewState)} of {loadState.recovery.candidates.length} candidates reviewed
-            {" · "}{reviewedRecoveryLabelCount(activeRecoveryReviewState)} of {loadState.recovery.label_proposals.length} labels reviewed
-          </span>
-        </div>
-        <p className="recovery-intro">
-          These prompt-specific tracks survived the geometry deduplication audit.
-          Keeping one records that the track is useful evidence; it does not alter
-          the completed event log or confirm a species or individual identity.
-        </p>
-        <div className="recovery-grid">
-          {loadState.recovery.candidates.map((candidate) => {
-            const decision = activeRecoveryReviewState.decisions[candidate.candidate_id];
-            return (
-              <button
-                className={`recovery-card ${decision} ${
-                  candidate.candidate_id === selectedRecoveryId ? "is-selected" : ""
-                }`}
-                key={candidate.candidate_id}
-                type="button"
-                aria-pressed={candidate.candidate_id === selectedRecoveryId}
-                onClick={() => selectRecoveryCandidate(candidate)}
-              >
-                <span>{humanizeIdentifier(candidate.suggested_label)}</span>
-                <strong>{candidate.candidate_id}</strong>
-                <small>
-                  {formatTime(candidate.start_s)}–{formatTime(candidate.end_s)} · {decision}
-                </small>
-              </button>
-            );
-          })}
-        </div>
-        <div className="recovery-actions">
-          <p>
-            Hippo candidates are explicitly ambiguous: the targeted pass still did
-            not detect both visible hippos simultaneously.
-          </p>
-          <button type="button" onClick={resetRecoveryReviews}>
-            Reset candidate reviews
-          </button>
-          <button type="button" onClick={downloadRecoveryCsv}>
-            Download recovery CSV
-          </button>
-        </div>
-      </section>
-      </details>
-
       <section className="event-table-section" aria-labelledby="event-table-heading">
         <div className="section-heading compact">
           <div>
@@ -1740,12 +1776,26 @@ export default function SavedAnalysisViewer() {
                   activeReviewState.event_reviews[event.event_id]?.decision ??
                   event.decision;
                 return (
-                  <tr className={`status-${eventStatus}`} key={event.event_id}>
+                  <tr
+                    className={`status-${eventStatus} ${
+                      event.event_id === selectedEventId ? "is-active" : ""
+                    }`}
+                    key={event.event_id}
+                    tabIndex={0}
+                    aria-label={`Open ${eventTitle(event)} for ${event.segment_id} at ${formatTime(event.start_s)}`}
+                    onClick={() => selectEvent(event)}
+                    onKeyDown={(keyEvent) => {
+                      if (keyEvent.key !== "Enter" && keyEvent.key !== " ") return;
+                      keyEvent.preventDefault();
+                      selectEvent(event);
+                    }}
+                  >
                     <td className="selection-cell">
                       <input
                         type="checkbox"
                         aria-label={`Select ${eventTitle(event)} for ${event.segment_id}`}
                         checked={selectedEventIds.has(event.event_id)}
+                        onClick={(clickEvent) => clickEvent.stopPropagation()}
                         onChange={(inputEvent) =>
                           toggleEventSelection(
                             event.event_id,
@@ -1759,7 +1809,10 @@ export default function SavedAnalysisViewer() {
                       <button
                         className="table-event-button"
                         type="button"
-                        onClick={() => selectEvent(event)}
+                        onClick={(clickEvent) => {
+                          clickEvent.stopPropagation();
+                          selectEvent(event);
+                        }}
                       >
                         {humanizeIdentifier(event.event_kind)}
                       </button>
