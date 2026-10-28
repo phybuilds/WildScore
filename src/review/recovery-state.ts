@@ -28,11 +28,13 @@ export function recoveryBundleKey(bundle: RecoveryCandidateBundle): string {
 export function createInitialRecoveryReviewState(
   bundle: RecoveryCandidateBundle,
 ): RecoveryReviewState {
+  const decisions: Record<string, RecoveryDecision> = Object.fromEntries(
+    bundle.candidates.map((candidate) => [candidate.candidate_id, "pending"]),
+  );
+  for (const review of bundle.reviews) decisions[review.candidate_id] = review.decision;
   return {
     bundle_key: recoveryBundleKey(bundle),
-    decisions: Object.fromEntries(
-      bundle.candidates.map((candidate) => [candidate.candidate_id, "pending"]),
-    ),
+    decisions,
   };
 }
 
@@ -54,7 +56,7 @@ export function recoveryReviewReducer(
     const restored = { ...initial.decisions };
     for (const [candidateId, decision] of Object.entries(action.decisions)) {
       if (
-        candidateId in restored &&
+        candidateId in restored && restored[candidateId] === "pending" &&
         ["pending", "accepted", "rejected", "uncertain"].includes(String(decision))
       ) {
         restored[candidateId] = decision as RecoveryDecision;

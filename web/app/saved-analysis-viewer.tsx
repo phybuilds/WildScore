@@ -1016,7 +1016,7 @@ export default function SavedAnalysisViewer() {
               </div>
               <p className="small-note">
                 Recovery decisions are isolated from the completed event review and
-                saved only in this browser.
+                stored in this reviewed demo; new changes also stay in this browser.
               </p>
             </>
           ) : selectedEvent && selectedSegment && selectedLabel ? (

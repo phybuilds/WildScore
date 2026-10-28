@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { validateRecoveryCandidateBundle } from "./recovery-schema.ts";
+import {
+  type RecoveryCandidateBundle,
+  validateRecoveryCandidateBundle,
+} from "./recovery-schema.ts";
 
-function fixture() {
+function fixture(): RecoveryCandidateBundle {
   return {
     schema: "wildscore-recovery-candidates-v1",
     clip_id: "clip-01",
@@ -31,6 +34,7 @@ function fixture() {
         detection_confidence: null,
       }],
     }],
+    reviews: [],
     limitations: ["Human review required."],
   };
 }
@@ -46,8 +50,11 @@ test("rejects duplicate candidate IDs", () => {
 });
 
 test("rejects non-additive tracks", () => {
-  const value = fixture();
-  value.candidates[0].audit_classification = "probable_duplicate";
+  const valid = fixture();
+  const value = {
+    ...valid,
+    candidates: [{ ...valid.candidates[0], audit_classification: "probable_duplicate" }],
+  };
   assert.throws(() => validateRecoveryCandidateBundle(value), /invalid fields/u);
 });
 
@@ -55,4 +62,18 @@ test("rejects geometry outside the processed clip", () => {
   const value = fixture();
   value.candidates[0].geometry[0].frame_index = 308;
   assert.throws(() => validateRecoveryCandidateBundle(value), /outside the processed clip/u);
+});
+
+test("accepts one stored review per known candidate", () => {
+  const value = fixture();
+  value.reviews.push({
+    candidate_id: "recovery-antelope-3",
+    decision: "accepted",
+    reviewer: "local_reviewer",
+    reviewed_at: null,
+    correction_note: "Kept after local review.",
+  });
+  assert.equal(validateRecoveryCandidateBundle(value).reviews.length, 1);
+  value.reviews.push(structuredClone(value.reviews[0]));
+  assert.throws(() => validateRecoveryCandidateBundle(value), /must be unique/u);
 });

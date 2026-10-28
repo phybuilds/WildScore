@@ -17,6 +17,14 @@ export interface RecoveryCandidate {
   geometry: GeometryRecord[];
 }
 
+export interface StoredRecoveryReview {
+  candidate_id: string;
+  decision: "accepted" | "rejected" | "uncertain";
+  reviewer: string;
+  reviewed_at: string | null;
+  correction_note: string;
+}
+
 export interface RecoveryCandidateBundle {
   schema: "wildscore-recovery-candidates-v1";
   clip_id: string;
@@ -25,6 +33,7 @@ export interface RecoveryCandidateBundle {
   width: number;
   height: number;
   candidates: RecoveryCandidate[];
+  reviews: StoredRecoveryReview[];
   limitations: string[];
 }
 
@@ -86,6 +95,7 @@ export function validateRecoveryCandidateBundle(value: unknown): RecoveryCandida
     !isSafeId(value.clip_id) || !isFiniteNumber(value.processed_fps) ||
     !Number.isInteger(value.processed_frame_count) || !Number.isInteger(value.width) ||
     !Number.isInteger(value.height) || !Array.isArray(value.candidates) ||
+    !Array.isArray(value.reviews) ||
     !Array.isArray(value.limitations) ||
     !value.limitations.every((item) => typeof item === "string" && item.length <= 240)
   ) {
@@ -117,6 +127,25 @@ export function validateRecoveryCandidateBundle(value: unknown): RecoveryCandida
   const candidateIds = value.candidates.map((candidate) => candidate.candidate_id);
   if (new Set(candidateIds).size !== candidateIds.length) {
     throw new Error("Recovery-candidate IDs must be unique");
+  }
+  const candidateIdSet = new Set(candidateIds);
+  const reviewIds = [];
+  for (const review of value.reviews) {
+    if (
+      !isRecord(review) || !isSafeId(review.candidate_id) ||
+      !candidateIdSet.has(review.candidate_id) ||
+      !["accepted", "rejected", "uncertain"].includes(String(review.decision)) ||
+      typeof review.reviewer !== "string" || review.reviewer.length > 120 ||
+      !(review.reviewed_at === null ||
+        (typeof review.reviewed_at === "string" && review.reviewed_at.length <= 80)) ||
+      typeof review.correction_note !== "string" || review.correction_note.length > 500
+    ) {
+      throw new Error("Recovery-candidate review is invalid");
+    }
+    reviewIds.push(review.candidate_id);
+  }
+  if (new Set(reviewIds).size !== reviewIds.length) {
+    throw new Error("Recovery-candidate reviews must be unique");
   }
   return value as unknown as RecoveryCandidateBundle;
 }

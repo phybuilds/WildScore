@@ -5,7 +5,9 @@ import { validateBundle } from "../src/data/bundle-schema.ts";
 import { validateRecoveryCandidateBundle } from "../src/data/recovery-schema.ts";
 
 const PRIVATE_BUNDLE = path.resolve("private/bundles/clip-01/bundle-reviewed.json");
-const PRIVATE_RECOVERY = path.resolve("private/bundles/clip-01/recovery-candidates.json");
+const PRIVATE_RECOVERY = path.resolve(
+  "private/bundles/clip-01/recovery-candidates-reviewed.json",
+);
 const PRIVATE_MEDIA = path.resolve(
   "private/derived/clip-01-sanitized-master.mp4",
 );

@@ -99,6 +99,7 @@ const bundle = validateRecoveryCandidateBundle({
   candidates: candidates.sort((left, right) =>
     left.start_s - right.start_s || left.candidate_id.localeCompare(right.candidate_id),
   ),
+  reviews: [],
   limitations: [
     "Candidates are prompt-specific tracks, not confirmed cross-response identities.",
     "Keeping a candidate does not confirm an entry, exit, species label, or individual identity.",

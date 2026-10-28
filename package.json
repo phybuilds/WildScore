@@ -17,6 +17,7 @@
     "demo:prepare": "node scripts/prepare-local-demo.mjs",
     "demo:build-reviewed": "node scripts/build-reviewed-demo-bundle.mjs",
     "demo:build-recovery": "node scripts/build-recovery-candidates.mjs",
+    "demo:build-reviewed-recovery": "node scripts/build-reviewed-recovery-bundle.mjs",
     "prebuild": "npm run check:public",
     "build": "next build web && npm run check:public",
     "check:model-key": "node --env-file=.env.local scripts/check-model-key.mjs",

@@ -16,6 +16,7 @@ const bundle = {
   width: 1920,
   height: 1080,
   candidates: [{ candidate_id: "recovery-antelope-3" }],
+  reviews: [],
   limitations: [],
 } as unknown as RecoveryCandidateBundle;
 
@@ -54,4 +55,17 @@ test("restore accepts only current candidate IDs and valid decisions", () => {
     },
   });
   assert.deepEqual(restored.decisions, { "recovery-antelope-3": "uncertain" });
+});
+
+test("stored reviews override stale browser-local decisions", () => {
+  const reviewedBundle = {
+    ...bundle,
+    reviews: [{ candidate_id: "recovery-antelope-3", decision: "accepted" }],
+  } as unknown as RecoveryCandidateBundle;
+  const restored = recoveryReviewReducer(createInitialRecoveryReviewState(reviewedBundle), {
+    type: "restore",
+    bundle: reviewedBundle,
+    decisions: { "recovery-antelope-3": "rejected" },
+  });
+  assert.equal(restored.decisions["recovery-antelope-3"], "accepted");
 });
