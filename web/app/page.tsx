@@ -21,27 +21,6 @@ export default function Home() {
 
       <SavedAnalysisViewer />
 
-      <section className="evidence-strip" aria-labelledby="evidence-heading">
-        <div>
-          <p className="eyebrow">Evidence boundary</p>
-          <h2 id="evidence-heading">Single-clip feasibility</h2>
-        </div>
-        <dl>
-          <div>
-            <dt>Models</dt>
-            <dd>Meta SAM 3.1 + Muse Spark 1.3</dd>
-          </div>
-          <div>
-            <dt>Evaluation</dt>
-            <dd>No held-out estimate yet</dd>
-          </div>
-          <div>
-            <dt>Known limits</dt>
-            <dd>Camera motion, crowding and fragmented tracks</dd>
-          </div>
-        </dl>
-      </section>
-
       <footer>
         Saved geometry and proposals remain inspectable after review. No API
         key, upload route or live inference is present in this static viewer.

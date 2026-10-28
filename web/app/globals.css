@@ -993,6 +993,31 @@ footer {
   line-height: 1.38;
 }
 
+.evidence-panel {
+  margin-top: 28px;
+  background: var(--paper-light);
+  box-shadow: 0 8px 22px rgba(46, 45, 41, 0.12);
+}
+
+.evidence-panel dl {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.evidence-provenance,
+.evidence-caveat {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.evidence-provenance {
+  margin: 12px 0 0;
+}
+
+.evidence-caveat {
+  margin: 18px 0 0;
+}
+
 footer {
   margin-top: 30px;
   padding-top: 20px;

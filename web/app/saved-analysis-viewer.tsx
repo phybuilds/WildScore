@@ -22,6 +22,7 @@ import {
 } from "../../src/data/view-model";
 import { buildEventCsv } from "../../src/export/event-csv";
 import { buildRecoveryCsv } from "../../src/export/recovery-csv";
+import { buildDevelopmentEvidenceSummary } from "../../src/evaluation/evidence-summary";
 import {
   bundleKey,
   createInitialReviewState,
@@ -733,6 +734,19 @@ export default function SavedAnalysisViewer() {
     );
   }
   const readyBundle = loadState.bundle;
+  const evidence = buildDevelopmentEvidenceSummary(
+    readyBundle,
+    loadState.recovery,
+  );
+  const runDetail = [
+    evidence.models.map(humanizeIdentifier).join(" + "),
+    evidence.samFramesProcessed === null
+      ? null
+      : `${evidence.samFramesProcessed} frames`,
+    evidence.samRuntimeMs === null
+      ? null
+      : `${(evidence.samRuntimeMs / 1000).toFixed(1)} s`,
+  ].filter((value): value is string => Boolean(value));
 
   return (
     <>
@@ -1464,6 +1478,46 @@ export default function SavedAnalysisViewer() {
           CSV includes every proposal, including rejected and unreviewed records. It is a
           WildScore event export, not a Camtrap DP package.
         </p>
+      </section>
+
+      <section className="evidence-strip evidence-panel" aria-labelledby="evidence-heading">
+        <div>
+          <p className="eyebrow">Evidence boundary</p>
+          <h2 id="evidence-heading">Single-clip development review</h2>
+          <p className="evidence-provenance">
+            {evidence.provider ?? "Saved model run"}
+            {runDetail.length > 0 ? ` · ${runDetail.join(" · ")}` : ""}
+          </p>
+        </div>
+        <div className="evidence-results">
+          <dl>
+            <div>
+              <dt>Event proposals</dt>
+              <dd>{evidence.eventProposalCount}</dd>
+            </div>
+            <div>
+              <dt>Stored decisions</dt>
+              <dd>
+                {evidence.acceptedEventCount} accepted · {evidence.rejectedEventCount} rejected · {evidence.uncertainEventCount} can’t tell
+              </dd>
+            </div>
+            <div>
+              <dt>Recovery review</dt>
+              <dd>
+                {evidence.reviewedRecoveryTrackCount} tracks · {evidence.reviewedRecoveryLabelCount} labels
+              </dd>
+            </div>
+            <div>
+              <dt>Held-out clips</dt>
+              <dd>{evidence.heldOutClipCount}</dd>
+            </div>
+          </dl>
+          <p className="evidence-caveat">
+            These are human decisions on this development clip’s proposals—not precision,
+            recall or an accuracy score. Proposal review cannot count animals the model
+            never proposed.
+          </p>
+        </div>
       </section>
     </>
   );
