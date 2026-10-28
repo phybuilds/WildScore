@@ -13,6 +13,8 @@ const fixedNeedles = [
   ["", "Users", ""].join("/"),
   "C:\\Users\\",
   process.cwd(),
+  '"processed_media_sha256"',
+  '"config_hash"',
 ];
 const credentialPatterns = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/u,
