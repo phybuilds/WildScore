@@ -35,12 +35,30 @@ function fixture(): RecoveryCandidateBundle {
       }],
     }],
     reviews: [],
+    label_proposals: [],
+    label_reviews: [],
     limitations: ["Human review required."],
   };
 }
 
 test("accepts a namespaced additive recovery candidate", () => {
   assert.equal(validateRecoveryCandidateBundle(fixture()).candidates.length, 1);
+});
+
+test("accepts one Meta label proposal per known candidate", () => {
+  const value = fixture();
+  value.label_proposals.push({
+    candidate_id: "recovery-antelope-3",
+    label_id: "antelope",
+    visible_evidence: "Slender body and long legs.",
+    uncertainty_reason: null,
+    model: "muse-spark-1.3",
+    source_run_id: "run-2",
+    context_condition: "visible_evidence_only",
+  });
+  assert.equal(validateRecoveryCandidateBundle(value).label_proposals.length, 1);
+  value.label_proposals.push(structuredClone(value.label_proposals[0]));
+  assert.throws(() => validateRecoveryCandidateBundle(value), /must be unique/u);
 });
 
 test("rejects duplicate candidate IDs", () => {

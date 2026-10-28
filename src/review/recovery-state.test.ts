@@ -6,6 +6,7 @@ import {
   createInitialRecoveryReviewState,
   recoveryReviewReducer,
   reviewedRecoveryCount,
+  reviewedRecoveryLabelCount,
 } from "./recovery-state.ts";
 
 const bundle = {
@@ -17,6 +18,8 @@ const bundle = {
   height: 1080,
   candidates: [{ candidate_id: "recovery-antelope-3" }],
   reviews: [],
+  label_proposals: [{ candidate_id: "recovery-antelope-3", label_id: "antelope" }],
+  label_reviews: [],
   limitations: [],
 } as unknown as RecoveryCandidateBundle;
 
@@ -32,8 +35,30 @@ test("candidate decisions are independent and start pending", () => {
   assert.equal(reviewedRecoveryCount(next), 1);
 });
 
+test("label review is separate from candidate acceptance", () => {
+  const initial = createInitialRecoveryReviewState(bundle);
+  const next = recoveryReviewReducer(initial, {
+    type: "decide_label",
+    candidate_id: "recovery-antelope-3",
+    decision: "corrected",
+    value: "warthog",
+  });
+  assert.equal(next.decisions["recovery-antelope-3"], "pending");
+  assert.deepEqual(next.label_decisions["recovery-antelope-3"], {
+    decision: "corrected",
+    value: "warthog",
+  });
+  assert.equal(reviewedRecoveryLabelCount(next), 1);
+});
+
 test("reset does not depend on event review state", () => {
-  const changed = recoveryReviewReducer(createInitialRecoveryReviewState(bundle), {
+  const labelled = recoveryReviewReducer(createInitialRecoveryReviewState(bundle), {
+    type: "decide_label",
+    candidate_id: "recovery-antelope-3",
+    decision: "accepted",
+    value: "antelope",
+  });
+  const changed = recoveryReviewReducer(labelled, {
     type: "decide",
     candidate_id: "recovery-antelope-3",
     decision: "rejected",
@@ -41,6 +66,11 @@ test("reset does not depend on event review state", () => {
   assert.equal(
     recoveryReviewReducer(changed, { type: "reset", bundle }).decisions["recovery-antelope-3"],
     "pending",
+  );
+  assert.equal(
+    recoveryReviewReducer(changed, { type: "reset", bundle })
+      .label_decisions["recovery-antelope-3"].decision,
+    "accepted",
   );
 });
 

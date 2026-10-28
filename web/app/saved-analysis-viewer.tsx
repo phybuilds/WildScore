@@ -34,6 +34,7 @@ import {
   recoveryBundleKey,
   recoveryReviewReducer,
   reviewedRecoveryCount,
+  reviewedRecoveryLabelCount,
   type RecoveryReviewState,
 } from "../../src/review/recovery-state";
 
@@ -61,10 +62,15 @@ const EMPTY_REVIEW_STATE: ReviewState = {
 const EMPTY_RECOVERY_REVIEW_STATE: RecoveryReviewState = {
   bundle_key: "",
   decisions: {},
+  label_decisions: {},
 };
 
 function recoveryStorageKey(bundle: RecoveryCandidateBundle): string {
   return `wildscore:recovery:${recoveryBundleKey(bundle)}`;
+}
+
+function recoveryLabelStorageKey(bundle: RecoveryCandidateBundle): string {
+  return `wildscore:recovery-labels:${recoveryBundleKey(bundle)}`;
 }
 
 export default function SavedAnalysisViewer() {
@@ -76,6 +82,7 @@ export default function SavedAnalysisViewer() {
   const [selectedRecoveryId, setSelectedRecoveryId] = useState<string | null>(null);
   const [showAllSegments, setShowAllSegments] = useState(false);
   const [draftLabel, setDraftLabel] = useState("");
+  const [recoveryDraftLabel, setRecoveryDraftLabel] = useState("unknown");
   const [replayEnd, setReplayEnd] = useState<number | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [scoreVolume, setScoreVolume] = useState(0.7);
@@ -119,6 +126,16 @@ export default function SavedAnalysisViewer() {
           bundle: recovery,
           decisions: storedRecoveryDecisions,
         });
+        try {
+          const stored = window.localStorage.getItem(recoveryLabelStorageKey(recovery));
+          dispatchRecoveryReview({
+            type: "restore_labels",
+            bundle: recovery,
+            labels: stored ? JSON.parse(stored) : null,
+          });
+        } catch {
+          dispatchRecoveryReview({ type: "restore_labels", bundle: recovery, labels: null });
+        }
         setLoadState({ status: "ready", bundle, recovery });
         setSelectedEventId(bundle.events[0]?.event_id ?? null);
         setSelectedSegmentId(
@@ -174,6 +191,9 @@ export default function SavedAnalysisViewer() {
   );
   const selectedRecovery = recovery?.candidates.find(
     (candidate) => candidate.candidate_id === selectedRecoveryId,
+  );
+  const selectedRecoveryProposal = recovery?.label_proposals.find(
+    (proposal) => proposal.candidate_id === selectedRecoveryId,
   );
   const baseFrame = bundle
     ? frameAtTime(
@@ -247,6 +267,20 @@ export default function SavedAnalysisViewer() {
       // Review remains usable in memory when browser storage is unavailable.
     }
   }, [recovery, recoveryReviewState]);
+
+  useEffect(() => {
+    if (!recovery || recoveryReviewState.bundle_key !== recoveryBundleKey(recovery)) return;
+    try {
+      window.localStorage.setItem(
+        recoveryLabelStorageKey(recovery),
+        JSON.stringify(recoveryReviewState.label_decisions),
+      );
+    } catch {}
+  }, [recovery, recoveryReviewState]);
+
+  useEffect(() => {
+    setRecoveryDraftLabel(selectedRecoveryProposal?.label_id ?? "unknown");
+  }, [selectedRecoveryProposal]);
 
   function cancelAudioSchedule() {
     if (scheduleTimerRef.current !== null) {
@@ -562,6 +596,18 @@ export default function SavedAnalysisViewer() {
       Math.max(0, currentIndex + direction),
     );
     selectRecoveryCandidate(recovery.candidates[nextIndex]);
+  }
+
+  function decideRecoveryLabel(decision: "accepted" | "corrected" | "uncertain") {
+    if (!selectedRecovery || !selectedRecoveryProposal) return;
+    dispatchRecoveryReview({
+      type: "decide_label",
+      candidate_id: selectedRecovery.candidate_id,
+      decision,
+      value: decision === "accepted"
+        ? selectedRecoveryProposal.label_id
+        : decision === "corrected" ? recoveryDraftLabel : null,
+    });
   }
 
   function saveLabel(value: string, correctionNote: string) {
@@ -968,6 +1014,38 @@ export default function SavedAnalysisViewer() {
                   .map(humanizeIdentifier)
                   .join(", ")}.
               </p>
+              {selectedRecoveryProposal && (
+                <div className="label-editor">
+                  <p className="eyebrow">Separate label review</p>
+                  <p className={`review-status ${activeRecoveryReviewState.label_decisions[selectedRecovery.candidate_id]?.decision ?? "pending"}`}>
+                    Label {activeRecoveryReviewState.label_decisions[selectedRecovery.candidate_id]?.decision ?? "pending"}
+                  </p>
+                  <p>
+                    <strong>Muse Spark proposal:</strong>{" "}
+                    {humanizeIdentifier(selectedRecoveryProposal.label_id)}
+                  </p>
+                  <p className="small-note">{selectedRecoveryProposal.visible_evidence}</p>
+                  <label>
+                    Correct broad label
+                    <select
+                      value={recoveryDraftLabel}
+                      onChange={(event) => setRecoveryDraftLabel(event.currentTarget.value)}
+                    >
+                      {["baboon", "warthog", "hippopotamus", "antelope", "unknown"].map((label) => (
+                        <option value={label} key={label}>{humanizeIdentifier(label)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="decision-row">
+                    <button type="button" onClick={() => decideRecoveryLabel("accepted")}>Accept proposal</button>
+                    <button type="button" onClick={() => decideRecoveryLabel("corrected")}>Save correction</button>
+                    <button type="button" onClick={() => decideRecoveryLabel("uncertain")}>Can’t tell</button>
+                  </div>
+                  <p className="small-note">
+                    Accepting this label does not confirm an individual identity or an entry/exit event.
+                  </p>
+                </div>
+              )}
               <button className="wide-button" type="button" onClick={replaySelectedRecovery}>
                 Replay candidate with 1-second context
               </button>
@@ -1185,6 +1263,7 @@ export default function SavedAnalysisViewer() {
           </div>
           <span className="handwritten">
             {reviewedRecoveryCount(activeRecoveryReviewState)} of {loadState.recovery.candidates.length} candidates reviewed
+            {" · "}{reviewedRecoveryLabelCount(activeRecoveryReviewState)} of {loadState.recovery.label_proposals.length} labels reviewed
           </span>
         </div>
         <p className="recovery-intro">

@@ -25,6 +25,24 @@ export interface StoredRecoveryReview {
   correction_note: string;
 }
 
+export interface RecoveryLabelProposal {
+  candidate_id: string;
+  label_id: "baboon" | "warthog" | "hippopotamus" | "antelope" | "unknown";
+  visible_evidence: string;
+  uncertainty_reason: string | null;
+  model: "muse-spark-1.3";
+  source_run_id: string;
+  context_condition: "visible_evidence_only";
+}
+
+export interface StoredRecoveryLabelReview {
+  candidate_id: string;
+  decision: "accepted" | "corrected" | "uncertain";
+  value: string | null;
+  reviewer: string;
+  reviewed_at: string | null;
+}
+
 export interface RecoveryCandidateBundle {
   schema: "wildscore-recovery-candidates-v1";
   clip_id: string;
@@ -34,6 +52,8 @@ export interface RecoveryCandidateBundle {
   height: number;
   candidates: RecoveryCandidate[];
   reviews: StoredRecoveryReview[];
+  label_proposals: RecoveryLabelProposal[];
+  label_reviews: StoredRecoveryLabelReview[];
   limitations: string[];
 }
 
@@ -95,7 +115,8 @@ export function validateRecoveryCandidateBundle(value: unknown): RecoveryCandida
     !isSafeId(value.clip_id) || !isFiniteNumber(value.processed_fps) ||
     !Number.isInteger(value.processed_frame_count) || !Number.isInteger(value.width) ||
     !Number.isInteger(value.height) || !Array.isArray(value.candidates) ||
-    !Array.isArray(value.reviews) ||
+    !Array.isArray(value.reviews) || !Array.isArray(value.label_proposals) ||
+    !Array.isArray(value.label_reviews) ||
     !Array.isArray(value.limitations) ||
     !value.limitations.every((item) => typeof item === "string" && item.length <= 240)
   ) {
@@ -146,6 +167,44 @@ export function validateRecoveryCandidateBundle(value: unknown): RecoveryCandida
   }
   if (new Set(reviewIds).size !== reviewIds.length) {
     throw new Error("Recovery-candidate reviews must be unique");
+  }
+  const proposalIds = [];
+  for (const proposal of value.label_proposals) {
+    if (
+      !isRecord(proposal) || !isSafeId(proposal.candidate_id) ||
+      !candidateIdSet.has(proposal.candidate_id) ||
+      !["baboon", "warthog", "hippopotamus", "antelope", "unknown"].includes(
+        String(proposal.label_id),
+      ) || typeof proposal.visible_evidence !== "string" ||
+      proposal.visible_evidence.length < 1 || proposal.visible_evidence.length > 300 ||
+      !(proposal.uncertainty_reason === null ||
+        (typeof proposal.uncertainty_reason === "string" &&
+          proposal.uncertainty_reason.length <= 200)) ||
+      proposal.model !== "muse-spark-1.3" || !isSafeId(proposal.source_run_id) ||
+      proposal.context_condition !== "visible_evidence_only"
+    ) {
+      throw new Error("Recovery label proposal is invalid");
+    }
+    proposalIds.push(proposal.candidate_id);
+  }
+  if (new Set(proposalIds).size !== proposalIds.length) {
+    throw new Error("Recovery label proposals must be unique");
+  }
+  const labelReviewIds = [];
+  for (const review of value.label_reviews) {
+    if (
+      !isRecord(review) || !isSafeId(review.candidate_id) ||
+      !candidateIdSet.has(review.candidate_id) ||
+      !["accepted", "corrected", "uncertain"].includes(String(review.decision)) ||
+      !(review.value === null || isSafeId(review.value)) ||
+      typeof review.reviewer !== "string" || review.reviewer.length > 120 ||
+      !(review.reviewed_at === null ||
+        (typeof review.reviewed_at === "string" && review.reviewed_at.length <= 80))
+    ) throw new Error("Recovery label review is invalid");
+    labelReviewIds.push(review.candidate_id);
+  }
+  if (new Set(labelReviewIds).size !== labelReviewIds.length) {
+    throw new Error("Recovery label reviews must be unique");
   }
   return value as unknown as RecoveryCandidateBundle;
 }

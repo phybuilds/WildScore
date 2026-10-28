@@ -20,6 +20,8 @@
     "demo:build-reviewed-recovery": "node scripts/build-reviewed-recovery-bundle.mjs",
     "labels:prepare-recovery": "node scripts/prepare-recovery-label-evidence.mjs",
     "labels:run-recovery": "node --env-file=.env.local scripts/meta-spark-recovery-labels.mjs",
+    "labels:build-recovery": "node scripts/build-recovery-label-bundle.mjs",
+    "labels:build-reviewed-recovery": "node scripts/build-reviewed-recovery-label-bundle.mjs",
     "prebuild": "npm run check:public",
     "build": "next build web && npm run check:public",
     "check:model-key": "node --env-file=.env.local scripts/check-model-key.mjs",
