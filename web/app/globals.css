@@ -274,18 +274,40 @@ h2 {
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(340px, 1fr);
-  gap: 26px;
-  align-items: start;
+  grid-template-rows: minmax(380px, 1.45fr) minmax(250px, 0.75fr);
+  grid-template-areas:
+    "media review"
+    "timeline timeline";
+  gap: 18px 26px;
+  align-items: stretch;
+  height: min(900px, calc(100vh - 24px));
+  min-height: 720px;
+  margin-bottom: 38px;
 }
 
 .workbench-side {
-  position: sticky;
-  top: 12px;
-  display: grid;
-  grid-template-rows: minmax(300px, 0.9fr) minmax(270px, 1.1fr);
-  gap: 16px;
-  height: min(820px, calc(100vh - 24px));
-  min-height: 640px;
+  display: contents;
+}
+
+.media-column {
+  grid-area: media;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 0 8px 8px 0;
+  scrollbar-color: rgba(31, 78, 143, 0.5) transparent;
+}
+
+.media-column .segment-focus-bar {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.media-column .segment-focus-bar span {
+  grid-column: 1 / -1;
+  white-space: normal;
+}
+
+.media-column .sound-strip {
+  grid-template-columns: 1fr;
 }
 
 .section-heading {
@@ -454,6 +476,7 @@ h2 {
 }
 
 .review-sheet {
+  grid-area: review;
   overflow-y: auto;
   min-height: 0;
   padding: 28px;
@@ -818,6 +841,7 @@ footer {
 }
 
 .timeline-section {
+  grid-area: timeline;
   display: flex;
   overflow: hidden;
   min-height: 0;
@@ -1255,11 +1279,23 @@ footer {
     grid-template-columns: 1fr;
   }
 
-  .workbench-side {
-    position: static;
-    display: contents;
+  .workspace {
+    grid-template-rows: auto;
+    grid-template-areas:
+      "media"
+      "review"
+      "timeline";
     height: auto;
     min-height: 0;
+  }
+
+  .workbench-side {
+    display: contents;
+  }
+
+  .media-column {
+    overflow: visible;
+    padding-right: 0;
   }
 
   .review-sheet {
