@@ -90,6 +90,7 @@ export default function SavedAnalysisViewer() {
   const [scoreVolume, setScoreVolume] = useState(0.7);
   const [audioUnavailable, setAudioUnavailable] = useState(false);
   const [suppressedCueCount, setSuppressedCueCount] = useState(0);
+  const [announcement, setAnnouncement] = useState("");
   const [reviewState, dispatchReview] = useReducer(
     reviewReducer,
     EMPTY_REVIEW_STATE,
@@ -474,6 +475,9 @@ export default function SavedAnalysisViewer() {
     setShowAllSegments(false);
     setAnalysisVisible(true);
     setReplayEnd(null);
+    setAnnouncement(
+      `Selected ${humanizeIdentifier(event.event_kind)} proposal for ${event.segment_id} at ${formatTime(event.start_s)}.`,
+    );
     const video = videoRef.current;
     if (video) {
       cancelAudioSchedule();
@@ -499,6 +503,7 @@ export default function SavedAnalysisViewer() {
     setSelectedEventId(firstEvent?.event_id ?? null);
     setAnalysisVisible(true);
     setReplayEnd(null);
+    setAnnouncement(`Following ${segmentId}.`);
     const video = videoRef.current;
     if (video) {
       cancelAudioSchedule();
@@ -518,6 +523,7 @@ export default function SavedAnalysisViewer() {
     setShowAllSegments(false);
     setAnalysisVisible(true);
     setReplayEnd(null);
+    setAnnouncement(`Selected recovery track ${candidate.candidate_id}.`);
     const video = videoRef.current;
     if (video) {
       cancelAudioSchedule();
@@ -575,6 +581,9 @@ export default function SavedAnalysisViewer() {
       reviewer: "local_reviewer",
       reviewed_at: new Date().toISOString(),
     });
+    setAnnouncement(
+      `${humanizeIdentifier(selectedEvent.event_kind)} proposal ${decision}.`,
+    );
   }
 
   function decideSelectedRecovery(
@@ -586,6 +595,7 @@ export default function SavedAnalysisViewer() {
       candidate_id: selectedRecovery.candidate_id,
       decision,
     });
+    setAnnouncement(`Recovery track ${decision}.`);
   }
 
   function navigateRecovery(direction: -1 | 1) {
@@ -610,6 +620,7 @@ export default function SavedAnalysisViewer() {
         ? selectedRecoveryProposal.label_id
         : decision === "corrected" ? recoveryDraftLabel : null,
     });
+    setAnnouncement(`Recovery label ${decision}.`);
   }
 
   function saveLabel(value: string, correctionNote: string) {
@@ -624,6 +635,7 @@ export default function SavedAnalysisViewer() {
       reviewed_at: new Date().toISOString(),
       correction_note: correctionNote,
     });
+    setAnnouncement(`Label saved as ${humanizeIdentifier(normalized)}.`);
   }
 
   function navigateEvent(direction: -1 | 1) {
@@ -673,11 +685,13 @@ export default function SavedAnalysisViewer() {
   function resetReviews() {
     if (!bundle) return;
     dispatchReview({ type: "reset", bundle });
+    setAnnouncement("Event and label reviews restored to the saved analysis.");
   }
 
   function resetRecoveryReviews() {
     if (!recovery) return;
     dispatchRecoveryReview({ type: "reset", bundle: recovery });
+    setAnnouncement("Recovery reviews restored to the saved analysis.");
   }
 
   useEffect(() => {
@@ -750,6 +764,9 @@ export default function SavedAnalysisViewer() {
 
   return (
     <>
+      <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+        {announcement}
+      </p>
       <section className="workspace" aria-labelledby="workspace-heading">
         <div className="media-column">
           <div className="section-heading">
