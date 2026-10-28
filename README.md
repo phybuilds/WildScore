@@ -71,13 +71,15 @@ npm run demo:prepare
 npm test
 npm run typecheck
 npm run build
+npm run check:public
 npm run dev
 ```
 
-The viewer validates the saved bundle before use. Review changes stay in memory;
-refreshing the page restores the immutable stored bundle. CSV export retains
-proposed, accepted and rejected events and neutralises spreadsheet-formula
-prefixes in editable fields.
+The viewer validates the saved bundle before use. Event-review experiments stay
+in memory and reset to the immutable stored bundle on refresh. Recovery reviews
+use bundle-scoped browser-local storage and never leave the device. CSV export
+retains proposed, accepted, rejected and `can't tell` events and neutralises
+spreadsheet-formula prefixes in editable fields.
 
 ## Current limitations
 
