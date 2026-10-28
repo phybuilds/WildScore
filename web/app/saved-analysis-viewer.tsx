@@ -15,6 +15,7 @@ import type {
 } from "../../src/data/recovery-schema";
 import {
   buildFrameGeometryIndex,
+  eventAnchorTime,
   formatTime,
   frameAtTime,
   humanizeIdentifier,
@@ -49,6 +50,12 @@ type LoadState =
       recovery: RecoveryCandidateBundle;
     };
 
+type AudioScope =
+  | { kind: "all" }
+  | { kind: "segment"; segmentId: string }
+  | { kind: "event"; eventId: string }
+  | { kind: "silent" };
+
 function eventTitle(event: CandidateEvent): string {
   return event.event_kind === "appearance"
     ? "Appearance proposal"
@@ -67,6 +74,39 @@ const EMPTY_RECOVERY_REVIEW_STATE: RecoveryReviewState = {
   label_decisions: {},
 };
 
+function reviewChangeCount(
+  exported: ReviewState | null,
+  current: ReviewState,
+): number {
+  if (!exported || exported.bundle_key !== current.bundle_key) return 0;
+  const eventIds = new Set([
+    ...Object.keys(exported.event_reviews),
+    ...Object.keys(current.event_reviews),
+  ]);
+  const segmentIds = new Set([
+    ...Object.keys(exported.label_reviews),
+    ...Object.keys(current.label_reviews),
+  ]);
+  let changed = 0;
+  for (const eventId of eventIds) {
+    if (
+      JSON.stringify(exported.event_reviews[eventId]) !==
+      JSON.stringify(current.event_reviews[eventId])
+    ) {
+      changed += 1;
+    }
+  }
+  for (const segmentId of segmentIds) {
+    if (
+      JSON.stringify(exported.label_reviews[segmentId]) !==
+      JSON.stringify(current.label_reviews[segmentId])
+    ) {
+      changed += 1;
+    }
+  }
+  return changed;
+}
+
 function recoveryStorageKey(bundle: RecoveryCandidateBundle): string {
   return `wildscore:recovery:${recoveryBundleKey(bundle)}`;
 }
@@ -84,10 +124,16 @@ export default function SavedAnalysisViewer() {
   const [selectedRecoveryId, setSelectedRecoveryId] = useState<string | null>(null);
   const [showAllSegments, setShowAllSegments] = useState(false);
   const [draftLabel, setDraftLabel] = useState("");
+  const [bulkLabel, setBulkLabel] = useState("baboon");
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [recoveryDraftLabel, setRecoveryDraftLabel] = useState("unknown");
   const [replayEnd, setReplayEnd] = useState<number | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [scoreVolume, setScoreVolume] = useState(0.7);
+  const [appearanceSoundEnabled, setAppearanceSoundEnabled] = useState(true);
+  const [disappearanceSoundEnabled, setDisappearanceSoundEnabled] = useState(true);
   const [audioUnavailable, setAudioUnavailable] = useState(false);
   const [suppressedCueCount, setSuppressedCueCount] = useState(0);
   const [announcement, setAnnouncement] = useState("");
@@ -95,6 +141,8 @@ export default function SavedAnalysisViewer() {
     reviewReducer,
     EMPTY_REVIEW_STATE,
   );
+  const [exportedReviewState, setExportedReviewState] =
+    useState<ReviewState | null>(null);
   const [recoveryReviewState, dispatchRecoveryReview] = useReducer(
     recoveryReviewReducer,
     EMPTY_RECOVERY_REVIEW_STATE,
@@ -108,6 +156,7 @@ export default function SavedAnalysisViewer() {
   const videoFrameCallbackRef = useRef<number | null>(null);
   const scheduledThroughRef = useRef(0);
   const suppressedEventIdsRef = useRef(new Set<string>());
+  const audioScopeRef = useRef<AudioScope>({ kind: "all" });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,6 +166,7 @@ export default function SavedAnalysisViewer() {
     ])
       .then(([bundle, recovery]) => {
         dispatchReview({ type: "load", bundle });
+        setExportedReviewState(createInitialReviewState(bundle));
         let storedRecoveryDecisions: unknown = null;
         try {
           const stored = window.localStorage.getItem(recoveryStorageKey(recovery));
@@ -144,6 +194,11 @@ export default function SavedAnalysisViewer() {
         setSelectedSegmentId(
           bundle.events[0]?.segment_id ?? bundle.segments[0]?.segment_id ?? null,
         );
+        const initialSegmentId =
+          bundle.events[0]?.segment_id ?? bundle.segments[0]?.segment_id;
+        audioScopeRef.current = initialSegmentId
+          ? { kind: "segment", segmentId: initialSegmentId }
+          : { kind: "all" };
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -164,6 +219,10 @@ export default function SavedAnalysisViewer() {
         ? createInitialReviewState(bundle)
         : reviewState,
     [bundle, reviewState],
+  );
+  const unexportedChangeCount = useMemo(
+    () => reviewChangeCount(exportedReviewState, activeReviewState),
+    [exportedReviewState, activeReviewState],
   );
   const geometryByFrame = useMemo<Map<number, VisibleGeometry[]>>(
     () => (bundle ? buildFrameGeometryIndex(bundle.segments) : new Map()),
@@ -249,10 +308,34 @@ export default function SavedAnalysisViewer() {
   const selectedLabelReview = selectedSegment
     ? activeReviewState.label_reviews[selectedSegment.segment_id]
     : null;
-  const audioCues = useMemo(
-    () => (bundle ? buildEventCues(bundle, activeReviewState) : []),
-    [bundle, activeReviewState],
+  const baseAudioCues = useMemo(
+    () =>
+      bundle
+        ? buildEventCues(bundle, activeReviewState).filter(
+            (cue) =>
+              (cue.event_kind === "appearance" && appearanceSoundEnabled) ||
+              (cue.event_kind === "disappearance" && disappearanceSoundEnabled),
+          )
+        : [],
+    [
+      bundle,
+      activeReviewState,
+      appearanceSoundEnabled,
+      disappearanceSoundEnabled,
+    ],
   );
+
+  function scopedAudioCues() {
+    const scope = audioScopeRef.current;
+    if (scope.kind === "silent") return [];
+    if (scope.kind === "event") {
+      return baseAudioCues.filter((cue) => cue.event_id === scope.eventId);
+    }
+    if (scope.kind === "segment") {
+      return baseAudioCues.filter((cue) => cue.segment_id === scope.segmentId);
+    }
+    return baseAudioCues;
+  }
 
   useEffect(() => {
     if (
@@ -362,7 +445,7 @@ export default function SavedAnalysisViewer() {
     if (!Number.isFinite(videoEnd) || videoEnd <= videoStart) return;
 
     const plan = planCueWindow({
-      cues: audioCues,
+      cues: scopedAudioCues(),
       videoStartS: videoStart,
       videoEndS: videoEnd,
       audioNowS:
@@ -380,17 +463,20 @@ export default function SavedAnalysisViewer() {
     for (const note of plan.notes) {
       const oscillator = context.createOscillator();
       const gain = context.createGain();
+      const panner = context.createStereoPanner();
       const start = Math.max(context.currentTime + 0.005, note.audio_start_s);
       const end = start + note.duration_s;
-      oscillator.type = "sine";
+      oscillator.type = note.oscillator_type;
       oscillator.frequency.setValueAtTime(note.frequency_hz, start);
+      panner.pan.setValueAtTime(note.pan, start);
       gain.gain.setValueAtTime(0, start);
       gain.gain.linearRampToValueAtTime(note.gain, start + 0.012);
       gain.gain.exponentialRampToValueAtTime(0.0001, end);
       oscillator.connect(gain);
       const masterGain = masterGainRef.current;
       if (!masterGain) continue;
-      gain.connect(masterGain);
+      gain.connect(panner);
+      panner.connect(masterGain);
       oscillator.addEventListener(
         "ended",
         () => scheduledNodesRef.current.delete(oscillator),
@@ -457,7 +543,7 @@ export default function SavedAnalysisViewer() {
     const video = videoRef.current;
     cancelAudioSchedule();
     if (soundEnabled && video && !video.paused) startAudioSchedule(video);
-  }, [audioCues, soundEnabled]);
+  }, [baseAudioCues, soundEnabled]);
 
   useEffect(
     () => () => {
@@ -475,6 +561,7 @@ export default function SavedAnalysisViewer() {
     setShowAllSegments(false);
     setAnalysisVisible(true);
     setReplayEnd(null);
+    audioScopeRef.current = { kind: "segment", segmentId: event.segment_id };
     setAnnouncement(
       `Selected ${humanizeIdentifier(event.event_kind)} proposal for ${event.segment_id} at ${formatTime(event.start_s)}.`,
     );
@@ -483,7 +570,14 @@ export default function SavedAnalysisViewer() {
       cancelAudioSchedule();
       resetSuppressedCues();
       video.pause();
-      video.currentTime = event.start_s;
+      const segment = bundle?.segments.find(
+        (candidate) => candidate.segment_id === event.segment_id,
+      );
+      const anchor =
+        bundle && segment
+          ? eventAnchorTime(event, segment, bundle.clip.processed_fps)
+          : event.start_s;
+      video.currentTime = anchor;
       setCurrentTime(video.currentTime);
     }
   }
@@ -503,6 +597,7 @@ export default function SavedAnalysisViewer() {
     setSelectedEventId(firstEvent?.event_id ?? null);
     setAnalysisVisible(true);
     setReplayEnd(null);
+    audioScopeRef.current = { kind: "segment", segmentId };
     setAnnouncement(`Following ${segmentId}.`);
     const video = videoRef.current;
     if (video) {
@@ -511,7 +606,9 @@ export default function SavedAnalysisViewer() {
       video.pause();
       video.currentTime = Math.max(
         0,
-        firstEvent?.start_s ?? segment.start_s,
+        firstEvent
+          ? eventAnchorTime(firstEvent, segment, bundle.clip.processed_fps)
+          : segment.first_frame / bundle.clip.processed_fps,
       );
       setCurrentTime(video.currentTime);
     }
@@ -523,6 +620,7 @@ export default function SavedAnalysisViewer() {
     setShowAllSegments(false);
     setAnalysisVisible(true);
     setReplayEnd(null);
+    audioScopeRef.current = { kind: "silent" };
     setAnnouncement(`Selected recovery track ${candidate.candidate_id}.`);
     const video = videoRef.current;
     if (video) {
@@ -535,11 +633,17 @@ export default function SavedAnalysisViewer() {
   }
 
   function replaySelectedEvent() {
-    if (!selectedEvent || !bundle) return;
+    if (!selectedEvent || !selectedSegment || !bundle) return;
     const video = videoRef.current;
     if (!video) return;
-    const start = Math.max(0, selectedEvent.start_s - 2);
-    const end = Math.min(bundle.clip.processed_duration_s, selectedEvent.end_s + 2);
+    const anchor = eventAnchorTime(
+      selectedEvent,
+      selectedSegment,
+      bundle.clip.processed_fps,
+    );
+    const start = Math.max(0, anchor - 2);
+    const end = Math.min(bundle.clip.processed_duration_s, anchor + 2);
+    audioScopeRef.current = { kind: "event", eventId: selectedEvent.event_id };
     cancelAudioSchedule();
     resetSuppressedCues();
     video.currentTime = start;
@@ -554,6 +658,7 @@ export default function SavedAnalysisViewer() {
     if (!video) return;
     const start = Math.max(0, selectedRecovery.start_s - 1);
     const end = Math.min(bundle.clip.processed_duration_s, selectedRecovery.end_s + 1);
+    audioScopeRef.current = { kind: "silent" };
     cancelAudioSchedule();
     resetSuppressedCues();
     video.currentTime = start;
@@ -567,6 +672,11 @@ export default function SavedAnalysisViewer() {
     if (replayEnd !== null && video.currentTime >= replayEnd) {
       video.pause();
       setReplayEnd(null);
+      audioScopeRef.current = selectedRecovery
+        ? { kind: "silent" }
+        : selectedSegmentId
+          ? { kind: "segment", segmentId: selectedSegmentId }
+          : { kind: "all" };
     }
   }
 
@@ -584,6 +694,53 @@ export default function SavedAnalysisViewer() {
     setAnnouncement(
       `${humanizeIdentifier(selectedEvent.event_kind)} proposal ${decision}.`,
     );
+  }
+
+  function decideBulkEvents(
+    decision: "accepted" | "rejected" | "uncertain",
+  ) {
+    if (selectedEventIds.size === 0) return;
+    dispatchReview({
+      type: "decide_events",
+      event_ids: [...selectedEventIds],
+      decision,
+      reviewer: "local_reviewer",
+      reviewed_at: new Date().toISOString(),
+    });
+    setAnnouncement(
+      `${selectedEventIds.size} selected event${selectedEventIds.size === 1 ? "" : "s"} marked ${decision}.`,
+    );
+  }
+
+  function applyBulkLabel() {
+    if (!bundle || selectedEventIds.size === 0) return;
+    const normalized = bulkLabel.trim().slice(0, 120);
+    if (!normalized) return;
+    const segmentIds = new Set(
+      bundle.events
+        .filter((event) => selectedEventIds.has(event.event_id))
+        .map((event) => event.segment_id),
+    );
+    dispatchReview({
+      type: "review_labels",
+      segment_ids: [...segmentIds],
+      value: normalized,
+      reviewer: "local_reviewer",
+      reviewed_at: new Date().toISOString(),
+      correction_note: "Applied to selected event segments during local review.",
+    });
+    setAnnouncement(
+      `${humanizeIdentifier(normalized)} applied to ${segmentIds.size} selected segment${segmentIds.size === 1 ? "" : "s"}.`,
+    );
+  }
+
+  function toggleEventSelection(eventId: string, selected: boolean) {
+    setSelectedEventIds((current) => {
+      const next = new Set(current);
+      if (selected) next.add(eventId);
+      else next.delete(eventId);
+      return next;
+    });
   }
 
   function decideSelectedRecovery(
@@ -663,6 +820,8 @@ export default function SavedAnalysisViewer() {
     document.body.append(link);
     link.click();
     link.remove();
+    setExportedReviewState(activeReviewState);
+    setAnnouncement("CSV downloaded. Current event and label changes are exported.");
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
@@ -712,6 +871,8 @@ export default function SavedAnalysisViewer() {
       } else if (key === "k") {
         if (selectedRecovery) navigateRecovery(-1);
         else navigateEvent(-1);
+      } else if (event.shiftKey && key === "a" && selectedEventIds.size > 0) {
+        decideBulkEvents("accepted");
       } else if (key === "a") {
         if (selectedRecovery) decideSelectedRecovery("accepted");
         else decideSelectedEvent("accepted");
@@ -761,6 +922,89 @@ export default function SavedAnalysisViewer() {
       ? null
       : `${(evidence.samRuntimeMs / 1000).toFixed(1)} s`,
   ].filter((value): value is string => Boolean(value));
+
+  const timelinePanel = (
+    <section className="timeline-section" aria-labelledby="timeline-heading">
+      <div className="section-heading compact">
+        <div>
+          <p className="eyebrow">Temporal evidence</p>
+          <h2 id="timeline-heading">Log of events</h2>
+        </div>
+        <span className="handwritten">
+          {reviewedEventCount(activeReviewState)} of {readyBundle.events.length} events reviewed
+        </span>
+      </div>
+      <div className="timeline-scale" aria-hidden="true">
+        <span>0:00</span>
+        <span>{formatTime(readyBundle.clip.processed_duration_s / 2)}</span>
+        <span>{formatTime(readyBundle.clip.processed_duration_s)}</span>
+      </div>
+      <div className="timeline-list">
+        {readyBundle.segments.map((segment) => {
+          const label = currentReviewedLabel(
+            readyBundle,
+            activeReviewState,
+            segment.segment_id,
+          );
+          const events = readyBundle.events.filter(
+            (event) => event.segment_id === segment.segment_id,
+          );
+          const duration = readyBundle.clip.processed_duration_s;
+          const isActive = segment.segment_id === selectedSegmentId;
+          const isDimmed = !showAllSegments && Boolean(selectedSegmentId) && !isActive;
+          return (
+            <div
+              className={`timeline-row ${isActive ? "is-active" : ""} ${
+                isDimmed ? "is-dimmed" : ""
+              }`}
+              key={segment.segment_id}
+            >
+              <div className="timeline-label">
+                <strong>{humanizeIdentifier(label.label)}</strong>
+                <span>{segment.segment_id}</span>
+              </div>
+              <div className="timeline-track">
+                <span
+                  className="presence-bar"
+                  style={{
+                    left: `${(segment.start_s / duration) * 100}%`,
+                    width: `${Math.max(0.6, ((segment.end_s - segment.start_s) / duration) * 100)}%`,
+                  }}
+                />
+                {events.map((event) => (
+                  <button
+                    className={`event-marker ${event.event_kind} ${
+                      activeReviewState.event_reviews[event.event_id]?.decision ??
+                      event.decision
+                    } ${event.event_id === selectedEventId ? "is-selected" : ""}`}
+                    key={event.event_id}
+                    type="button"
+                    style={{ left: `${(event.start_s / duration) * 100}%` }}
+                    aria-label={`${eventTitle(event)} for ${segment.segment_id} at ${formatTime(event.start_s)}`}
+                    aria-pressed={event.event_id === selectedEventId}
+                    onClick={() => selectEvent(event)}
+                  />
+                ))}
+                <span
+                  className="timeline-playhead"
+                  style={{ left: `${Math.min(100, (currentTime / duration) * 100)}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="timeline-legend">
+        <span><i className="legend-presence" /> Saved presence</span>
+        <span><i className="legend-appearance" /> Appearance proposal</span>
+        <span><i className="legend-disappearance" /> Disappearance proposal</span>
+      </div>
+      <p className="timeline-note">
+        Rows are observed segments, not persistent animal identities. Focused review dims
+        other tracks without removing them; View all restores full contrast.
+      </p>
+    </section>
+  );
 
   return (
     <>
@@ -935,6 +1179,7 @@ export default function SavedAnalysisViewer() {
                     setSelectedRecoveryId(null);
                     setShowAllSegments(true);
                     setAnalysisVisible(true);
+                    audioScopeRef.current = { kind: "all" };
                   } else if (value !== "__recovery__") {
                     selectSegment(value);
                   }
@@ -985,7 +1230,7 @@ export default function SavedAnalysisViewer() {
                   Sound {soundEnabled ? "on" : "off"}
                 </button>
                 <label className="score-volume">
-                  <span>Score level {Math.round(scoreVolume * 100)}%</span>
+                  <span>Sound volume {Math.round(scoreVolume * 100)}%</span>
                   <input
                     type="range"
                     min="0"
@@ -998,10 +1243,35 @@ export default function SavedAnalysisViewer() {
                     }
                   />
                 </label>
+                <fieldset className="cue-filters">
+                  <legend>Audible events</legend>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={appearanceSoundEnabled}
+                      onChange={(event) =>
+                        setAppearanceSoundEnabled(event.currentTarget.checked)
+                      }
+                    />
+                    Appearance
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={disappearanceSoundEnabled}
+                      onChange={(event) =>
+                        setDisappearanceSoundEnabled(event.currentTarget.checked)
+                      }
+                    />
+                    Disappearance
+                  </label>
+                </fieldset>
               </div>
               <p>
-                <strong>Audio key:</strong> rising notes mark appearance proposals;
-                falling notes mark disappearances. Accepted events sound stronger.
+                <strong>Audio key:</strong> bright rising notes mark appearances;
+                lower fading notes mark disappearances. Stereo position follows the
+                saved box location. Accepted events sound stronger; rejected and
+                can’t-tell events are silent.
               </p>
               {suppressedCueCount > 0 && (
                 <span className="sound-omission">
@@ -1016,6 +1286,7 @@ export default function SavedAnalysisViewer() {
           </div>
         </div>
 
+        <div className="workbench-side">
         <aside className="review-sheet" aria-labelledby="review-heading">
           <p className="eyebrow">
             {selectedRecovery ? "Recovery candidate" : "Evidence selected"}
@@ -1301,8 +1572,20 @@ export default function SavedAnalysisViewer() {
             <p className="review-copy">Choose an event marker from the log below.</p>
           )}
         </aside>
+        {timelinePanel}
+        </div>
       </section>
 
+      <details className="recovery-disclosure">
+        <summary>
+          <span>
+            <strong>Targeted recovery audit</strong>
+            <small>Supplemental tracks from separate, prompt-specific SAM runs</small>
+          </span>
+          <span className="handwritten">
+            {reviewedRecoveryCount(activeRecoveryReviewState)} of {loadState.recovery.candidates.length} reviewed
+          </span>
+        </summary>
       <section className="recovery-section" aria-labelledby="recovery-heading">
         <div className="section-heading compact">
           <div>
@@ -1354,82 +1637,7 @@ export default function SavedAnalysisViewer() {
           </button>
         </div>
       </section>
-
-      <section className="timeline-section" aria-labelledby="timeline-heading">
-        <div className="section-heading compact">
-          <div>
-            <p className="eyebrow">Temporal evidence</p>
-            <h2 id="timeline-heading">Log of events</h2>
-          </div>
-          <span className="handwritten">
-            {reviewedEventCount(activeReviewState)} of {readyBundle.events.length} events reviewed
-          </span>
-        </div>
-        <div className="timeline-scale" aria-hidden="true">
-          <span>0:00</span>
-          <span>{formatTime(readyBundle.clip.processed_duration_s / 2)}</span>
-          <span>{formatTime(readyBundle.clip.processed_duration_s)}</span>
-        </div>
-        <div className="timeline-list">
-          {readyBundle.segments.map((segment) => {
-            const label = currentReviewedLabel(
-              readyBundle,
-              activeReviewState,
-              segment.segment_id,
-            );
-            const events = readyBundle.events.filter(
-              (event) => event.segment_id === segment.segment_id,
-            );
-            const duration = readyBundle.clip.processed_duration_s;
-            return (
-              <div className="timeline-row" key={segment.segment_id}>
-                <div className="timeline-label">
-                  <strong>{humanizeIdentifier(label.label)}</strong>
-                  <span>{segment.segment_id}</span>
-                </div>
-                <div className="timeline-track">
-                  <span
-                    className="presence-bar"
-                    style={{
-                      left: `${(segment.start_s / duration) * 100}%`,
-                      width: `${Math.max(0.6, ((segment.end_s - segment.start_s) / duration) * 100)}%`,
-                    }}
-                  />
-                  {events.map((event) => (
-                    <button
-                      className={`event-marker ${event.event_kind} ${
-                        activeReviewState.event_reviews[event.event_id]?.decision ??
-                        event.decision
-                      } ${
-                        event.event_id === selectedEventId ? "is-selected" : ""
-                      }`}
-                      key={event.event_id}
-                      type="button"
-                      style={{ left: `${(event.start_s / duration) * 100}%` }}
-                      aria-label={`${eventTitle(event)} for ${segment.segment_id} at ${formatTime(event.start_s)}`}
-                      aria-pressed={event.event_id === selectedEventId}
-                      onClick={() => selectEvent(event)}
-                    />
-                  ))}
-                  <span
-                    className="timeline-playhead"
-                    style={{ left: `${Math.min(100, (currentTime / duration) * 100)}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="timeline-legend">
-          <span><i className="legend-presence" /> Saved presence</span>
-          <span><i className="legend-appearance" /> Appearance proposal</span>
-          <span><i className="legend-disappearance" /> Disappearance proposal</span>
-        </div>
-        <p className="timeline-note">
-          Rows are gap-free segments, not persistent animal identities. Geometry remains visible
-          regardless of later event decisions.
-        </p>
-      </section>
+      </details>
 
       <section className="event-table-section" aria-labelledby="event-table-heading">
         <div className="section-heading compact">
@@ -1439,15 +1647,80 @@ export default function SavedAnalysisViewer() {
           </div>
           <div className="table-actions">
             <button type="button" onClick={resetReviews}>Reset reviews</button>
-            <button className="primary-action" type="button" onClick={downloadCsv}>
-              Download CSV
-            </button>
+            <div className="export-status">
+              <span className={unexportedChangeCount > 0 ? "has-changes" : "is-current"}>
+                {unexportedChangeCount > 0
+                  ? `${unexportedChangeCount} change${unexportedChangeCount === 1 ? "" : "s"} not exported`
+                  : "CSV up to date"}
+              </span>
+              <button className="primary-action" type="button" onClick={downloadCsv}>
+                Download CSV
+              </button>
+            </div>
           </div>
+        </div>
+        <div className="bulk-review-bar" aria-label="Bulk event review">
+          <span>
+            {selectedEventIds.size} event{selectedEventIds.size === 1 ? "" : "s"} selected
+          </span>
+          <button
+            type="button"
+            disabled={selectedEventIds.size === 0}
+            onClick={() => decideBulkEvents("accepted")}
+          >
+            Accept selected <span aria-hidden="true">(Shift+A)</span>
+          </button>
+          <button
+            type="button"
+            disabled={selectedEventIds.size === 0}
+            onClick={() => decideBulkEvents("rejected")}
+          >
+            Reject selected
+          </button>
+          <button
+            type="button"
+            disabled={selectedEventIds.size === 0}
+            onClick={() => decideBulkEvents("uncertain")}
+          >
+            Can’t tell selected
+          </button>
+          <label>
+            Apply broad label
+            <input
+              value={bulkLabel}
+              maxLength={120}
+              onChange={(event) => setBulkLabel(event.currentTarget.value)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={selectedEventIds.size === 0 || bulkLabel.trim().length === 0}
+            onClick={applyBulkLabel}
+          >
+            Apply to selected segments
+          </button>
         </div>
         <div className="event-table-scroll">
           <table>
             <thead>
               <tr>
+                <th className="selection-cell">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all events"
+                    checked={
+                      readyBundle.events.length > 0 &&
+                      selectedEventIds.size === readyBundle.events.length
+                    }
+                    onChange={(event) =>
+                      setSelectedEventIds(
+                        event.currentTarget.checked
+                          ? new Set(readyBundle.events.map((item) => item.event_id))
+                          : new Set(),
+                      )
+                    }
+                  />
+                </th>
                 <th>Time</th>
                 <th>Event</th>
                 <th>Segment</th>
@@ -1463,8 +1736,24 @@ export default function SavedAnalysisViewer() {
                   activeReviewState,
                   event.segment_id,
                 );
+                const eventStatus =
+                  activeReviewState.event_reviews[event.event_id]?.decision ??
+                  event.decision;
                 return (
-                  <tr key={event.event_id}>
+                  <tr className={`status-${eventStatus}`} key={event.event_id}>
+                    <td className="selection-cell">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${eventTitle(event)} for ${event.segment_id}`}
+                        checked={selectedEventIds.has(event.event_id)}
+                        onChange={(inputEvent) =>
+                          toggleEventSelection(
+                            event.event_id,
+                            inputEvent.currentTarget.checked,
+                          )
+                        }
+                      />
+                    </td>
                     <td>{formatTime(event.start_s)}</td>
                     <td>
                       <button
@@ -1478,8 +1767,7 @@ export default function SavedAnalysisViewer() {
                     <td>{event.segment_id}</td>
                     <td>{humanizeIdentifier(label.label)}</td>
                     <td>
-                      {activeReviewState.event_reviews[event.event_id]?.decision ??
-                        event.decision}
+                      {eventStatus}
                     </td>
                     <td>
                       {activeReviewState.label_reviews[event.segment_id]?.decision ??

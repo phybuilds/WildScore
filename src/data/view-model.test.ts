@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { PresenceSegment, WildScoreBundle } from "./bundle-schema.ts";
+import type {
+  CandidateEvent,
+  PresenceSegment,
+  WildScoreBundle,
+} from "./bundle-schema.ts";
 import {
   buildFrameGeometryIndex,
   currentSegmentLabel,
+  eventAnchorFrame,
+  eventAnchorTime,
   formatTime,
   frameAtTime,
 } from "./view-model.ts";
@@ -16,6 +22,25 @@ test("maps video time to a bounded processed frame", () => {
   assert.equal(frameAtTime(16.4 - 1e-3, 10, 205), 164);
   assert.equal(frameAtTime(16.34, 10, 205), 163);
   assert.equal(frameAtTime(99, 10, 205), 204);
+});
+
+test("event anchors use analysed segment boundary frames", () => {
+  const segment = {
+    first_frame: 12,
+    last_frame: 47,
+  } as PresenceSegment;
+  const appearance = {
+    event_kind: "appearance",
+    start_s: 1.19,
+  } as CandidateEvent;
+  const disappearance = {
+    event_kind: "disappearance",
+    start_s: 4.71,
+  } as CandidateEvent;
+  assert.equal(eventAnchorFrame(appearance, segment), 12);
+  assert.equal(eventAnchorFrame(disappearance, segment), 47);
+  assert.equal(eventAnchorTime(appearance, segment, 10), 1.2);
+  assert.equal(eventAnchorTime(disappearance, segment, 10), 4.7);
 });
 
 test("indexes geometry without merging gap-separated segments", () => {

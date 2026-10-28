@@ -17,6 +17,8 @@ function cue(eventId: string, timeS: number): EventCue {
         duration_s: 0.12,
         frequency_hz: 220,
         gain: 0.055,
+        oscillator_type: "triangle",
+        pan: 0,
       },
     ],
   };

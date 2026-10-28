@@ -44,7 +44,34 @@ function fixture(events: CandidateEvent[]): WildScoreBundle {
       height: 10,
     },
     run: {},
-    segments: [],
+    segments: [
+      {
+        segment_id: "segment-1",
+        sam_object_id: "1",
+        first_frame: 10,
+        last_frame: 20,
+        start_s: 1,
+        end_s: 2,
+        already_visible_at_start: false,
+        still_visible_at_end: false,
+        geometry: [
+          {
+            frame_index: 10,
+            object_id: "1",
+            box: { left: 0, top: 0, right: 2, bottom: 2 },
+            mask: { encoding: "none", width: 10, height: 10, payload: "" },
+            detection_confidence: null,
+          },
+          {
+            frame_index: 20,
+            object_id: "1",
+            box: { left: 8, top: 0, right: 10, bottom: 2 },
+            mask: { encoding: "none", width: 10, height: 10, payload: "" },
+            detection_confidence: null,
+          },
+        ],
+      },
+    ],
     events,
     label_proposals: [],
     reviews: [],
@@ -60,6 +87,11 @@ test("appearance rises and disappearance falls from a stable segment root", () =
   const cues = buildEventCues(bundle, createInitialReviewState(bundle));
   assert.ok(cues[0].notes[0].frequency_hz < cues[0].notes[2].frequency_hz);
   assert.ok(cues[1].notes[0].frequency_hz > cues[1].notes[2].frequency_hz);
+  assert.equal(cues[0].notes[0].oscillator_type, "triangle");
+  assert.equal(cues[1].notes[0].oscillator_type, "sine");
+  assert.ok(cues[0].notes[0].pan < 0);
+  assert.ok(cues[1].notes[0].pan > 0);
+  assert.ok(cues[1].notes[2].duration_s > cues[0].notes[2].duration_s);
   assert.equal(segmentRootFrequency("segment-1"), segmentRootFrequency("segment-1"));
 });
 

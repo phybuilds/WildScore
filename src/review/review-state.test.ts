@@ -95,6 +95,19 @@ test("can't tell completes an event review without forcing a binary decision", (
   assert.equal(reviewedEventCount(next), 1);
 });
 
+test("bulk event decisions update known events once and ignore stale ids", () => {
+  const bundle = fixture();
+  const next = reviewReducer(createInitialReviewState(bundle), {
+    type: "decide_events",
+    event_ids: ["event-1", "event-1", "missing-event"],
+    decision: "rejected",
+    reviewer: "local_reviewer",
+    reviewed_at: "2026-10-27T12:00:00.000Z",
+  });
+  assert.equal(next.event_reviews["event-1"].decision, "rejected");
+  assert.equal(Object.keys(next.event_reviews).length, 1);
+});
+
 test("a correction preserves the machine proposal", () => {
   const bundle = fixture();
   const next = reviewReducer(createInitialReviewState(bundle), {
@@ -107,6 +120,20 @@ test("a correction preserves the machine proposal", () => {
   });
   assert.equal(next.label_reviews["segment-1"].original_value, "baboon");
   assert.equal(next.label_reviews["segment-1"].new_value, "unknown");
+});
+
+test("bulk labels preserve each original proposal", () => {
+  const bundle = fixture();
+  const next = reviewReducer(createInitialReviewState(bundle), {
+    type: "review_labels",
+    segment_ids: ["segment-1", "segment-1", "missing-segment"],
+    value: "baboon",
+    reviewer: "local_reviewer",
+    reviewed_at: "2026-10-27T12:00:00.000Z",
+    correction_note: "Applied to selected segments.",
+  });
+  assert.equal(next.label_reviews["segment-1"].original_value, "baboon");
+  assert.equal(next.label_reviews["segment-1"].new_value, null);
 });
 
 test("reset restores the stored bundle review", () => {

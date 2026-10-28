@@ -10,6 +10,8 @@ export interface CueNote {
   duration_s: number;
   frequency_hz: number;
   gain: number;
+  oscillator_type: "sine" | "triangle";
+  pan: number;
 }
 
 export interface EventCue {
@@ -28,7 +30,8 @@ export interface CueBatch {
 }
 
 const BASE_SCALE_HZ = [196, 220, 246.94, 261.63, 293.66, 329.63, 392];
-const MOTIF_RATIOS = [1, 1.12246, 1.33484];
+const APPEARANCE_RATIOS = [1, 1.25, 1.5];
+const DISAPPEARANCE_RATIOS = [1.25, 1, 0.75];
 
 function stableStringHash(value: string): number {
   let hash = 2166136261;
@@ -44,20 +47,40 @@ export function segmentRootFrequency(segmentId: string): number {
 }
 
 function motifForEvent(
+  bundle: WildScoreBundle,
   event: CandidateEvent,
   reviewStatus: Exclude<ReviewDecision, "rejected" | "uncertain">,
 ): CueNote[] {
   const root = segmentRootFrequency(event.segment_id);
-  const ratios =
+  const segment = bundle.segments.find(
+    (candidate) => candidate.segment_id === event.segment_id,
+  );
+  const orderedGeometry = [...(segment?.geometry ?? [])].sort(
+    (left, right) => left.frame_index - right.frame_index,
+  );
+  const geometry =
     event.event_kind === "appearance"
-      ? MOTIF_RATIOS
-      : [...MOTIF_RATIOS].reverse();
+      ? orderedGeometry[0]
+      : orderedGeometry.at(-1);
+  const boxCenterX = geometry
+    ? (geometry.box.left + geometry.box.right) / 2
+    : bundle.clip.width / 2;
+  const normalizedPan =
+    bundle.clip.width > 0 ? (boxCenterX / bundle.clip.width) * 2 - 1 : 0;
+  const pan = Number(
+    Math.max(-0.85, Math.min(0.85, normalizedPan)).toFixed(3),
+  );
+  const isAppearance = event.event_kind === "appearance";
+  const ratios = isAppearance ? APPEARANCE_RATIOS : DISAPPEARANCE_RATIOS;
   const gain = reviewStatus === "accepted" ? 0.1 : 0.055;
   return ratios.map((ratio, index) => ({
-    offset_s: index * 0.09,
-    duration_s: 0.12,
+    offset_s: index * (isAppearance ? 0.075 : 0.11),
+    duration_s:
+      isAppearance ? 0.1 : index === ratios.length - 1 ? 0.28 : 0.17,
     frequency_hz: Number((root * ratio).toFixed(2)),
     gain,
+    oscillator_type: isAppearance ? "triangle" : "sine",
+    pan,
   }));
 }
 
@@ -76,7 +99,7 @@ export function buildEventCues(
         time_s: event.start_s,
         event_kind: event.event_kind,
         review_status: reviewStatus,
-        notes: motifForEvent(event, reviewStatus),
+        notes: motifForEvent(bundle, event, reviewStatus),
       },
     ];
   });

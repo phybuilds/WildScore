@@ -1,4 +1,5 @@
 import type {
+  CandidateEvent,
   GeometryRecord,
   PresenceSegment,
   WildScoreBundle,
@@ -20,6 +21,24 @@ export function frameAtTime(
     frameCount - 1,
     Math.max(0, Math.round(framePosition)),
   );
+}
+
+export function eventAnchorFrame(
+  event: CandidateEvent,
+  segment: PresenceSegment,
+): number {
+  return event.event_kind === "appearance"
+    ? segment.first_frame
+    : segment.last_frame;
+}
+
+export function eventAnchorTime(
+  event: CandidateEvent,
+  segment: PresenceSegment,
+  fps: number,
+): number {
+  if (!Number.isFinite(fps) || fps <= 0) return event.start_s;
+  return eventAnchorFrame(event, segment) / fps;
 }
 
 export function buildFrameGeometryIndex(

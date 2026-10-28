@@ -36,8 +36,23 @@ export type ReviewAction =
       reviewed_at: string;
     }
   | {
+      type: "decide_events";
+      event_ids: string[];
+      decision: "accepted" | "rejected" | "uncertain";
+      reviewer: string;
+      reviewed_at: string;
+    }
+  | {
       type: "review_label";
       segment_id: string;
+      value: string;
+      reviewer: string;
+      reviewed_at: string;
+      correction_note: string;
+    }
+  | {
+      type: "review_labels";
+      segment_ids: string[];
       value: string;
       reviewer: string;
       reviewed_at: string;
@@ -93,6 +108,17 @@ export function createInitialReviewState(bundle: WildScoreBundle): ReviewState {
       correction_note: "",
     };
   }
+  for (const segment of bundle.segments) {
+    if (segment.segment_id in labelReviews) continue;
+    labelReviews[segment.segment_id] = {
+      decision: "proposed",
+      original_value: "unlabelled animal",
+      new_value: null,
+      reviewer: null,
+      reviewed_at: null,
+      correction_note: "",
+    };
+  }
   Object.assign(labelReviews, storedLabelReviews(bundle.reviews));
   for (const review of bundle.reviews) {
     if (review.review_kind !== "event" || !review.event_id) continue;
@@ -117,40 +143,51 @@ export function reviewReducer(
   if (action.type === "load" || action.type === "reset") {
     return createInitialReviewState(action.bundle);
   }
-  if (action.type === "decide_event") {
-    if (!(action.event_id in state.event_reviews)) return state;
-    return {
-      ...state,
-      event_reviews: {
-        ...state.event_reviews,
-        [action.event_id]: {
-          decision: action.decision,
-          reviewer: action.reviewer,
-          reviewed_at: action.reviewed_at,
-          correction_note:
-            action.decision === "uncertain"
-              ? "Reviewer could not determine this event from the saved evidence."
-              : "",
-        },
-      },
-    };
-  }
-  const existing = state.label_reviews[action.segment_id];
-  if (!existing) return state;
-  return {
-    ...state,
-    label_reviews: {
-      ...state.label_reviews,
-      [action.segment_id]: {
-        decision: "accepted",
-        original_value: existing.original_value,
-        new_value:
-          action.value === existing.original_value ? null : action.value,
+  if (action.type === "decide_event" || action.type === "decide_events") {
+    const eventIds =
+      action.type === "decide_event" ? [action.event_id] : action.event_ids;
+    const eventReviews = { ...state.event_reviews };
+    let changed = false;
+    for (const eventId of new Set(eventIds)) {
+      if (!(eventId in eventReviews)) continue;
+      eventReviews[eventId] = {
+        decision: action.decision,
         reviewer: action.reviewer,
         reviewed_at: action.reviewed_at,
-        correction_note: action.correction_note,
-      },
-    },
+        correction_note:
+          action.decision === "uncertain"
+            ? "Reviewer could not determine this event from the saved evidence."
+            : "",
+      };
+      changed = true;
+    }
+    if (!changed) return state;
+    return {
+      ...state,
+      event_reviews: eventReviews,
+    };
+  }
+  const segmentIds =
+    action.type === "review_label" ? [action.segment_id] : action.segment_ids;
+  const labelReviews = { ...state.label_reviews };
+  let changed = false;
+  for (const segmentId of new Set(segmentIds)) {
+    const existing = labelReviews[segmentId];
+    if (!existing) continue;
+    labelReviews[segmentId] = {
+      decision: "accepted",
+      original_value: existing.original_value,
+      new_value: action.value === existing.original_value ? null : action.value,
+      reviewer: action.reviewer,
+      reviewed_at: action.reviewed_at,
+      correction_note: action.correction_note,
+    };
+    changed = true;
+  }
+  if (!changed) return state;
+  return {
+    ...state,
+    label_reviews: labelReviews,
   };
 }
 
