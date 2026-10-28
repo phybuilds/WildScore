@@ -41,6 +41,21 @@ export function eventAnchorTime(
   return eventAnchorFrame(event, segment) / fps;
 }
 
+export function geometryAnchorTime(
+  geometry: Pick<GeometryRecord, "frame_index">[],
+  fps: number,
+  fallbackTime: number,
+): number {
+  if (!Number.isFinite(fps) || fps <= 0 || geometry.length === 0) {
+    return fallbackTime;
+  }
+  const firstFrame = geometry.reduce(
+    (earliest, record) => Math.min(earliest, record.frame_index),
+    Number.POSITIVE_INFINITY,
+  );
+  return Number.isFinite(firstFrame) ? firstFrame / fps : fallbackTime;
+}
+
 export function buildFrameGeometryIndex(
   segments: PresenceSegment[],
 ): Map<number, VisibleGeometry[]> {

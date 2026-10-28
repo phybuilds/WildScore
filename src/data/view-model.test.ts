@@ -13,6 +13,7 @@ import {
   eventAnchorTime,
   formatTime,
   frameAtTime,
+  geometryAnchorTime,
 } from "./view-model.ts";
 
 test("maps video time to a bounded processed frame", () => {
@@ -41,6 +42,15 @@ test("event anchors use analysed segment boundary frames", () => {
   assert.equal(eventAnchorFrame(disappearance, segment), 47);
   assert.equal(eventAnchorTime(appearance, segment, 10), 1.2);
   assert.equal(eventAnchorTime(disappearance, segment, 10), 4.7);
+});
+
+test("recovery navigation uses the earliest analysed geometry frame", () => {
+  assert.equal(
+    geometryAnchorTime([{ frame_index: 300 }, { frame_index: 274 }], 15, 18.3),
+    274 / 15,
+  );
+  assert.equal(geometryAnchorTime([], 15, 18.3), 18.3);
+  assert.equal(geometryAnchorTime([{ frame_index: 274 }], 0, 18.3), 18.3);
 });
 
 test("indexes geometry without merging gap-separated segments", () => {

@@ -18,6 +18,7 @@ import {
   eventAnchorTime,
   formatTime,
   frameAtTime,
+  geometryAnchorTime,
   humanizeIdentifier,
   type VisibleGeometry,
 } from "../../src/data/view-model";
@@ -638,11 +639,13 @@ export default function SavedAnalysisViewer() {
       cancelAudioSchedule();
       resetSuppressedCues();
       video.pause();
-      const firstFrame = candidate.geometry[0]?.frame_index;
-      video.currentTime =
-        firstFrame === undefined || !recovery
-          ? candidate.start_s
-          : firstFrame / recovery.processed_fps;
+      video.currentTime = recovery
+        ? geometryAnchorTime(
+            candidate.geometry,
+            recovery.processed_fps,
+            candidate.start_s,
+          )
+        : candidate.start_s;
       setCurrentTime(video.currentTime);
     }
     if (recoveryMenuRef.current) recoveryMenuRef.current.open = false;
