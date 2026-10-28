@@ -21,6 +21,7 @@ import {
   type VisibleGeometry,
 } from "../../src/data/view-model";
 import { buildEventCsv } from "../../src/export/event-csv";
+import { buildRecoveryCsv } from "../../src/export/recovery-csv";
 import {
   bundleKey,
   createInitialReviewState,
@@ -645,6 +646,22 @@ export default function SavedAnalysisViewer() {
     const link = document.createElement("a");
     link.href = url;
     link.download = `${bundle.clip.clip_id}-wildscore-events.csv`;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  function downloadRecoveryCsv() {
+    if (!recovery) return;
+    const blob = new Blob([buildRecoveryCsv(recovery, activeRecoveryReviewState)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${recovery.clip_id}-wildscore-recovery.csv`;
     link.hidden = true;
     document.body.append(link);
     link.click();
@@ -1300,6 +1317,9 @@ export default function SavedAnalysisViewer() {
           </p>
           <button type="button" onClick={resetRecoveryReviews}>
             Reset candidate reviews
+          </button>
+          <button type="button" onClick={downloadRecoveryCsv}>
+            Download recovery CSV
           </button>
         </div>
       </section>
