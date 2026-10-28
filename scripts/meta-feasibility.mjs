@@ -8,8 +8,22 @@ import { parseAndSummariseSamEvents } from "./lib/sam-output.mjs";
 
 const execFileAsync = promisify(execFile);
 const API_BASE = "https://api.meta.ai/v1";
-const MEDIA_PATH = path.resolve("private/derived/clip-01-analysis-10fps.mp4");
+const allowedArguments = new Set(["--fps=10", "--fps=15"]);
+const unknownArguments = process.argv.slice(2).filter((argument) => !allowedArguments.has(argument));
+if (unknownArguments.length > 0 || process.argv.slice(2).length > 1) {
+  throw new Error("Usage: node scripts/meta-feasibility.mjs [--fps=10|--fps=15]");
+}
+const ANALYSIS_FPS = Number(process.argv[2]?.split("=")[1] ?? 10);
+const MEDIA_FILE_NAME = `clip-01-analysis-${ANALYSIS_FPS}fps.mp4`;
+const MEDIA_PATH = path.resolve("private/derived", MEDIA_FILE_NAME);
 const MEDIA_ROOT = path.resolve("private/derived");
+const RUNS_ROOT = path.resolve(
+  ANALYSIS_FPS === 10
+    ? "private/model-runs"
+    : "private/model-experiments/sam-temporal-15fps",
+);
+const RUN_PURPOSE =
+  ANALYSIS_FPS === 10 ? "hero_feasibility" : "temporal_sampling_experiment";
 const PROMPT = "animal";
 const SAM_MODEL = "sam-3.1";
 const MAX_BYTES = 100 * 1024 * 1024;
@@ -105,7 +119,7 @@ async function uploadMedia(filePath) {
   form.append(
     "file",
     new Blob([bytes], { type: "video/mp4" }),
-    "clip-01-analysis-10fps.mp4",
+    MEDIA_FILE_NAME,
   );
 
   const response = await fetch(`${API_BASE}/files`, {
@@ -226,7 +240,10 @@ async function main() {
   }
 
   const media = await probeMedia(MEDIA_PATH);
-  const runDirectory = path.resolve("private/model-runs", safeTimestamp());
+  if (media.fps !== ANALYSIS_FPS) {
+    throw new Error("Processed media frame rate did not match the requested experiment.");
+  }
+  const runDirectory = path.join(RUNS_ROOT, safeTimestamp());
   await mkdir(runDirectory, { recursive: true, mode: 0o700 });
   await chmod(runDirectory, 0o700);
 
@@ -258,6 +275,8 @@ async function main() {
 
     await saveJson(path.join(runDirectory, "sam-summary.json"), {
       status: "completed",
+      run_purpose: RUN_PURPOSE,
+      analysis_fps: ANALYSIS_FPS,
       provider: "Meta Model API",
       data_mode: "standard model; not contributor mode",
       model: SAM_MODEL,
