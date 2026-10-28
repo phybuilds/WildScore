@@ -5,7 +5,14 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { buildEventCues } from "../../src/audio/cue-builder";
 import { planCueWindow } from "../../src/audio/scheduler";
 import type { CandidateEvent, WildScoreBundle } from "../../src/data/bundle-schema";
-import { loadDemoBundle } from "../../src/data/load-demo";
+import {
+  loadDemoBundle,
+  loadRecoveryCandidateBundle,
+} from "../../src/data/load-demo";
+import type {
+  RecoveryCandidate,
+  RecoveryCandidateBundle,
+} from "../../src/data/recovery-schema";
 import {
   buildFrameGeometryIndex,
   formatTime,
@@ -22,11 +29,22 @@ import {
   reviewedEventCount,
   type ReviewState,
 } from "../../src/review/review-state";
+import {
+  createInitialRecoveryReviewState,
+  recoveryBundleKey,
+  recoveryReviewReducer,
+  reviewedRecoveryCount,
+  type RecoveryReviewState,
+} from "../../src/review/recovery-state";
 
 type LoadState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; bundle: WildScoreBundle };
+  | {
+      status: "ready";
+      bundle: WildScoreBundle;
+      recovery: RecoveryCandidateBundle;
+    };
 
 function eventTitle(event: CandidateEvent): string {
   return event.event_kind === "appearance"
@@ -40,12 +58,22 @@ const EMPTY_REVIEW_STATE: ReviewState = {
   label_reviews: {},
 };
 
+const EMPTY_RECOVERY_REVIEW_STATE: RecoveryReviewState = {
+  bundle_key: "",
+  decisions: {},
+};
+
+function recoveryStorageKey(bundle: RecoveryCandidateBundle): string {
+  return `wildscore:recovery:${recoveryBundleKey(bundle)}`;
+}
+
 export default function SavedAnalysisViewer() {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [analysisVisible, setAnalysisVisible] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
+  const [selectedRecoveryId, setSelectedRecoveryId] = useState<string | null>(null);
   const [showAllSegments, setShowAllSegments] = useState(false);
   const [draftLabel, setDraftLabel] = useState("");
   const [replayEnd, setReplayEnd] = useState<number | null>(null);
@@ -56,6 +84,10 @@ export default function SavedAnalysisViewer() {
   const [reviewState, dispatchReview] = useReducer(
     reviewReducer,
     EMPTY_REVIEW_STATE,
+  );
+  const [recoveryReviewState, dispatchRecoveryReview] = useReducer(
+    recoveryReviewReducer,
+    EMPTY_RECOVERY_REVIEW_STATE,
   );
   const videoRef = useRef<HTMLVideoElement>(null);
   const labelInputRef = useRef<HTMLInputElement>(null);
@@ -69,10 +101,25 @@ export default function SavedAnalysisViewer() {
 
   useEffect(() => {
     const controller = new AbortController();
-    loadDemoBundle(controller.signal)
-      .then((bundle) => {
+    Promise.all([
+      loadDemoBundle(controller.signal),
+      loadRecoveryCandidateBundle(controller.signal),
+    ])
+      .then(([bundle, recovery]) => {
         dispatchReview({ type: "load", bundle });
-        setLoadState({ status: "ready", bundle });
+        let storedRecoveryDecisions: unknown = null;
+        try {
+          const stored = window.localStorage.getItem(recoveryStorageKey(recovery));
+          storedRecoveryDecisions = stored ? JSON.parse(stored) : null;
+        } catch {
+          storedRecoveryDecisions = null;
+        }
+        dispatchRecoveryReview({
+          type: "restore",
+          bundle: recovery,
+          decisions: storedRecoveryDecisions,
+        });
+        setLoadState({ status: "ready", bundle, recovery });
         setSelectedEventId(bundle.events[0]?.event_id ?? null);
         setSelectedSegmentId(
           bundle.events[0]?.segment_id ?? bundle.segments[0]?.segment_id ?? null,
@@ -90,6 +137,7 @@ export default function SavedAnalysisViewer() {
   }, []);
 
   const bundle = loadState.status === "ready" ? loadState.bundle : null;
+  const recovery = loadState.status === "ready" ? loadState.recovery : null;
   const activeReviewState = useMemo(
     () =>
       bundle && reviewState.bundle_key !== bundleKey(bundle)
@@ -101,18 +149,60 @@ export default function SavedAnalysisViewer() {
     () => (bundle ? buildFrameGeometryIndex(bundle.segments) : new Map()),
     [bundle],
   );
-  const currentFrame = bundle
+  const recoveryGeometryByFrame = useMemo<Map<number, VisibleGeometry[]>>(() => {
+    const index = new Map<number, VisibleGeometry[]>();
+    if (!recovery) return index;
+    for (const candidate of recovery.candidates) {
+      for (const geometry of candidate.geometry) {
+        const records = index.get(geometry.frame_index) ?? [];
+        records.push({
+          ...geometry,
+          segment_id: candidate.candidate_id,
+          sam_object_id: `${candidate.source_prompt}:${candidate.source_object_id}`,
+        });
+        index.set(geometry.frame_index, records);
+      }
+    }
+    return index;
+  }, [recovery]);
+  const activeRecoveryReviewState = useMemo(
+    () =>
+      recovery && recoveryReviewState.bundle_key !== recoveryBundleKey(recovery)
+        ? createInitialRecoveryReviewState(recovery)
+        : recoveryReviewState,
+    [recovery, recoveryReviewState],
+  );
+  const selectedRecovery = recovery?.candidates.find(
+    (candidate) => candidate.candidate_id === selectedRecoveryId,
+  );
+  const baseFrame = bundle
     ? frameAtTime(
         currentTime,
         bundle.clip.processed_fps,
         bundle.clip.processed_frame_count,
       )
     : 0;
-  const visibleGeometry = geometryByFrame.get(currentFrame) ?? [];
+  const recoveryFrame = recovery
+    ? frameAtTime(
+        currentTime,
+        recovery.processed_fps,
+        recovery.processed_frame_count,
+      )
+    : 0;
+  const currentFrame = selectedRecovery ? recoveryFrame : baseFrame;
+  const visibleGeometry = selectedRecovery
+    ? recoveryGeometryByFrame.get(recoveryFrame) ?? []
+    : geometryByFrame.get(baseFrame) ?? [];
   const selectedGeometry = visibleGeometry.filter(
-    (geometry) => geometry.segment_id === selectedSegmentId,
+    (geometry) =>
+      geometry.segment_id ===
+      (selectedRecovery?.candidate_id ?? selectedSegmentId),
   );
-  const displayedGeometry = showAllSegments ? visibleGeometry : selectedGeometry;
+  const displayedGeometry = selectedRecovery
+    ? selectedGeometry
+    : showAllSegments
+      ? visibleGeometry
+      : selectedGeometry;
   const selectedEvent = bundle?.events.find(
     (event) => event.event_id === selectedEventId,
   );
@@ -140,6 +230,23 @@ export default function SavedAnalysisViewer() {
     () => (bundle ? buildEventCues(bundle, activeReviewState) : []),
     [bundle, activeReviewState],
   );
+
+  useEffect(() => {
+    if (
+      !recovery ||
+      recoveryReviewState.bundle_key !== recoveryBundleKey(recovery)
+    ) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        recoveryStorageKey(recovery),
+        JSON.stringify(recoveryReviewState.decisions),
+      );
+    } catch {
+      // Review remains usable in memory when browser storage is unavailable.
+    }
+  }, [recovery, recoveryReviewState]);
 
   function cancelAudioSchedule() {
     if (scheduleTimerRef.current !== null) {
@@ -325,6 +432,7 @@ export default function SavedAnalysisViewer() {
   );
 
   function selectEvent(event: CandidateEvent) {
+    setSelectedRecoveryId(null);
     setSelectedEventId(event.event_id);
     setSelectedSegmentId(event.segment_id);
     setShowAllSegments(false);
@@ -346,6 +454,7 @@ export default function SavedAnalysisViewer() {
       (candidate) => candidate.segment_id === segmentId,
     );
     if (!segment) return;
+    setSelectedRecoveryId(null);
     const firstEvent = bundle.events
       .filter((event) => event.segment_id === segmentId)
       .sort((left, right) => left.start_s - right.start_s)[0];
@@ -367,12 +476,42 @@ export default function SavedAnalysisViewer() {
     }
   }
 
+  function selectRecoveryCandidate(candidate: RecoveryCandidate) {
+    setSelectedRecoveryId(candidate.candidate_id);
+    setSelectedEventId(null);
+    setShowAllSegments(false);
+    setAnalysisVisible(true);
+    setReplayEnd(null);
+    const video = videoRef.current;
+    if (video) {
+      cancelAudioSchedule();
+      resetSuppressedCues();
+      video.pause();
+      video.currentTime = candidate.start_s;
+      setCurrentTime(video.currentTime);
+    }
+  }
+
   function replaySelectedEvent() {
     if (!selectedEvent || !bundle) return;
     const video = videoRef.current;
     if (!video) return;
     const start = Math.max(0, selectedEvent.start_s - 2);
     const end = Math.min(bundle.clip.processed_duration_s, selectedEvent.end_s + 2);
+    cancelAudioSchedule();
+    resetSuppressedCues();
+    video.currentTime = start;
+    setCurrentTime(start);
+    setReplayEnd(end);
+    void video.play().catch(() => setReplayEnd(null));
+  }
+
+  function replaySelectedRecovery() {
+    if (!selectedRecovery || !bundle) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const start = Math.max(0, selectedRecovery.start_s - 1);
+    const end = Math.min(bundle.clip.processed_duration_s, selectedRecovery.end_s + 1);
     cancelAudioSchedule();
     resetSuppressedCues();
     video.currentTime = start;
@@ -400,6 +539,29 @@ export default function SavedAnalysisViewer() {
       reviewer: "local_reviewer",
       reviewed_at: new Date().toISOString(),
     });
+  }
+
+  function decideSelectedRecovery(
+    decision: "accepted" | "rejected" | "uncertain",
+  ) {
+    if (!selectedRecovery) return;
+    dispatchRecoveryReview({
+      type: "decide",
+      candidate_id: selectedRecovery.candidate_id,
+      decision,
+    });
+  }
+
+  function navigateRecovery(direction: -1 | 1) {
+    if (!recovery || recovery.candidates.length === 0) return;
+    const currentIndex = recovery.candidates.findIndex(
+      (candidate) => candidate.candidate_id === selectedRecoveryId,
+    );
+    const nextIndex = Math.min(
+      recovery.candidates.length - 1,
+      Math.max(0, currentIndex + direction),
+    );
+    selectRecoveryCandidate(recovery.candidates[nextIndex]);
   }
 
   function saveLabel(value: string, correctionNote: string) {
@@ -449,6 +611,11 @@ export default function SavedAnalysisViewer() {
     dispatchReview({ type: "reset", bundle });
   }
 
+  function resetRecoveryReviews() {
+    if (!recovery) return;
+    dispatchRecoveryReview({ type: "reset", bundle: recovery });
+  }
+
   useEffect(() => {
     if (!bundle) return;
     function onKeyDown(event: KeyboardEvent) {
@@ -461,11 +628,22 @@ export default function SavedAnalysisViewer() {
         return;
       }
       const key = event.key.toLowerCase();
-      if (key === "j") navigateEvent(1);
-      else if (key === "k") navigateEvent(-1);
-      else if (key === "a") decideSelectedEvent("accepted");
-      else if (key === "r") decideSelectedEvent("rejected");
-      else if (key === "u") decideSelectedEvent("uncertain");
+      if (key === "j") {
+        if (selectedRecovery) navigateRecovery(1);
+        else navigateEvent(1);
+      } else if (key === "k") {
+        if (selectedRecovery) navigateRecovery(-1);
+        else navigateEvent(-1);
+      } else if (key === "a") {
+        if (selectedRecovery) decideSelectedRecovery("accepted");
+        else decideSelectedEvent("accepted");
+      } else if (key === "r") {
+        if (selectedRecovery) decideSelectedRecovery("rejected");
+        else decideSelectedEvent("rejected");
+      } else if (key === "u") {
+        if (selectedRecovery) decideSelectedRecovery("uncertain");
+        else decideSelectedEvent("uncertain");
+      }
       else if (key === "e") labelInputRef.current?.focus();
       else return;
       event.preventDefault();
@@ -575,17 +753,23 @@ export default function SavedAnalysisViewer() {
                 aria-hidden="true"
               >
                 {displayedGeometry.map((geometry) => {
-                  const label = currentReviewedLabel(
-                    readyBundle,
-                    activeReviewState,
-                    geometry.segment_id,
-                  );
+                  const label = selectedRecovery
+                    ? {
+                        label: `${selectedRecovery.suggested_label} candidate`,
+                        source: "model" as const,
+                      }
+                    : currentReviewedLabel(
+                        readyBundle,
+                        activeReviewState,
+                        geometry.segment_id,
+                      );
                   const width = geometry.box.right - geometry.box.left;
                   const height = geometry.box.bottom - geometry.box.top;
                   return (
                     <g
                       className={
-                        geometry.segment_id === selectedSegmentId
+                        geometry.segment_id ===
+                        (selectedRecovery?.candidate_id ?? selectedSegmentId)
                           ? "selected-geometry"
                           : undefined
                       }
@@ -613,10 +797,14 @@ export default function SavedAnalysisViewer() {
               {analysisVisible && (
                 <div className="frame-readout" aria-live="off">
                   Frame {currentFrame} · {selectedGeometry.length > 0
-                    ? showAllSegments
+                    ? selectedRecovery
+                      ? `following ${selectedRecovery.candidate_id}`
+                      : showAllSegments
                       ? `${visibleGeometry.length} visible · ${selectedSegmentId} selected`
                       : `following ${selectedSegmentId}`
-                    : showAllSegments
+                    : selectedRecovery
+                      ? "candidate not visible at this frame"
+                      : showAllSegments
                       ? `${visibleGeometry.length} visible · selected segment not visible`
                       : "selected segment not visible at this frame"}
                 </div>
@@ -640,17 +828,29 @@ export default function SavedAnalysisViewer() {
               <label htmlFor="segment-focus">Follow segment</label>
               <select
                 id="segment-focus"
-                value={showAllSegments ? "__all__" : selectedSegmentId ?? ""}
+                value={
+                  selectedRecovery
+                    ? "__recovery__"
+                    : showAllSegments
+                      ? "__all__"
+                      : selectedSegmentId ?? ""
+                }
                 onChange={(event) => {
                   const value = event.currentTarget.value;
                   if (value === "__all__") {
+                    setSelectedRecoveryId(null);
                     setShowAllSegments(true);
                     setAnalysisVisible(true);
-                  } else {
+                  } else if (value !== "__recovery__") {
                     selectSegment(value);
                   }
                 }}
               >
+                {selectedRecovery && (
+                  <option value="__recovery__">
+                    Recovery candidate · {selectedRecovery.candidate_id}
+                  </option>
+                )}
                 <option value="__all__">View all segments</option>
                 {[...readyBundle.segments]
                   .sort(
@@ -674,6 +874,8 @@ export default function SavedAnalysisViewer() {
               <span>
                 {showAllSegments
                   ? "All boxes are shown; the selected segment is yellow."
+                  : selectedRecovery
+                    ? "Only this unmerged recovery candidate is shown."
                   : "Only this segment’s saved box is shown."}
               </span>
             </div>
@@ -721,11 +923,103 @@ export default function SavedAnalysisViewer() {
         </div>
 
         <aside className="review-sheet" aria-labelledby="review-heading">
-          <p className="eyebrow">Evidence selected</p>
+          <p className="eyebrow">
+            {selectedRecovery ? "Recovery candidate" : "Evidence selected"}
+          </p>
           <h2 id="review-heading">
-            {selectedEvent ? eventTitle(selectedEvent) : "No event selected"}
+            {selectedRecovery
+              ? humanizeIdentifier(selectedRecovery.suggested_label)
+              : selectedEvent
+                ? eventTitle(selectedEvent)
+                : "No event selected"}
           </h2>
-          {selectedEvent && selectedSegment && selectedLabel ? (
+          {selectedRecovery ? (
+            <>
+              <p className="event-time">
+                {formatTime(selectedRecovery.start_s)}–{formatTime(selectedRecovery.end_s)} · {selectedRecovery.candidate_id}
+              </p>
+              <p className={`review-status ${activeRecoveryReviewState.decisions[selectedRecovery.candidate_id]}`}>
+                Candidate {activeRecoveryReviewState.decisions[selectedRecovery.candidate_id]}
+              </p>
+              <p className="review-copy">
+                A targeted Meta SAM pass recovered this track after the generic pass
+                missed it. It has not been merged into the saved analysis.
+              </p>
+              <p className="review-instruction">
+                Keep it only if the box follows one visible animal. This decision does
+                not confirm an entry, exit, individual identity, or species label.
+              </p>
+              <dl className="event-facts">
+                <div>
+                  <dt>Prompt</dt>
+                  <dd>{humanizeIdentifier(selectedRecovery.source_prompt)}</dd>
+                </div>
+                <div>
+                  <dt>Audit</dt>
+                  <dd>Additive candidate</dd>
+                </div>
+                <div>
+                  <dt>Timebase</dt>
+                  <dd>{loadState.recovery.processed_fps} fps</dd>
+                </div>
+              </dl>
+              <p className="uncertainty-note">
+                Check carefully: {selectedRecovery.uncertainty_flags
+                  .map(humanizeIdentifier)
+                  .join(", ")}.
+              </p>
+              <button className="wide-button" type="button" onClick={replaySelectedRecovery}>
+                Replay candidate with 1-second context
+              </button>
+              <div className="decision-row">
+                <button
+                  className={
+                    activeRecoveryReviewState.decisions[selectedRecovery.candidate_id] === "accepted"
+                      ? "decision-active"
+                      : undefined
+                  }
+                  type="button"
+                  onClick={() => decideSelectedRecovery("accepted")}
+                >
+                  Keep candidate <span aria-hidden="true">(A)</span>
+                </button>
+                <button
+                  className={
+                    activeRecoveryReviewState.decisions[selectedRecovery.candidate_id] === "rejected"
+                      ? "decision-active"
+                      : undefined
+                  }
+                  type="button"
+                  onClick={() => decideSelectedRecovery("rejected")}
+                >
+                  Dismiss <span aria-hidden="true">(R)</span>
+                </button>
+                <button
+                  className={
+                    activeRecoveryReviewState.decisions[selectedRecovery.candidate_id] === "uncertain"
+                      ? "decision-active uncertain"
+                      : undefined
+                  }
+                  type="button"
+                  onClick={() => decideSelectedRecovery("uncertain")}
+                >
+                  Can’t tell <span aria-hidden="true">(U)</span>
+                </button>
+              </div>
+              <div className="review-navigation">
+                <button type="button" onClick={() => navigateRecovery(-1)}>
+                  Previous <span aria-hidden="true">(K)</span>
+                </button>
+                <button type="button" onClick={() => navigateRecovery(1)}>
+                  Next <span aria-hidden="true">(J)</span>
+                </button>
+              </div>
+              <p className="small-note">
+                Recovery decisions are isolated from the completed event review and
+                saved only in this browser.
+              </p>
+            </>
+          ) : selectedEvent && selectedSegment && selectedLabel ? (
             <>
               <p className="event-time">
                 {formatTime(selectedEvent.start_s)} · {selectedSegment.segment_id}
@@ -873,13 +1167,62 @@ export default function SavedAnalysisViewer() {
                 </button>
               </div>
               <p className="small-note">
-                Event and label reviews are separate. Refresh resets this in-memory session.
+                Event and label reviews are separate. Refresh restores the saved
+                51-event review and discards only unsaved event changes.
               </p>
             </>
           ) : (
             <p className="review-copy">Choose an event marker from the log below.</p>
           )}
         </aside>
+      </section>
+
+      <section className="recovery-section" aria-labelledby="recovery-heading">
+        <div className="section-heading compact">
+          <div>
+            <p className="eyebrow">Targeted recovery · not merged</p>
+            <h2 id="recovery-heading">Additional tracks for human review</h2>
+          </div>
+          <span className="handwritten">
+            {reviewedRecoveryCount(activeRecoveryReviewState)} of {loadState.recovery.candidates.length} candidates reviewed
+          </span>
+        </div>
+        <p className="recovery-intro">
+          These prompt-specific tracks survived the geometry deduplication audit.
+          Keeping one records that the track is useful evidence; it does not alter
+          the completed event log or confirm a species or individual identity.
+        </p>
+        <div className="recovery-grid">
+          {loadState.recovery.candidates.map((candidate) => {
+            const decision = activeRecoveryReviewState.decisions[candidate.candidate_id];
+            return (
+              <button
+                className={`recovery-card ${decision} ${
+                  candidate.candidate_id === selectedRecoveryId ? "is-selected" : ""
+                }`}
+                key={candidate.candidate_id}
+                type="button"
+                aria-pressed={candidate.candidate_id === selectedRecoveryId}
+                onClick={() => selectRecoveryCandidate(candidate)}
+              >
+                <span>{humanizeIdentifier(candidate.suggested_label)}</span>
+                <strong>{candidate.candidate_id}</strong>
+                <small>
+                  {formatTime(candidate.start_s)}–{formatTime(candidate.end_s)} · {decision}
+                </small>
+              </button>
+            );
+          })}
+        </div>
+        <div className="recovery-actions">
+          <p>
+            Hippo candidates are explicitly ambiguous: the targeted pass still did
+            not detect both visible hippos simultaneously.
+          </p>
+          <button type="button" onClick={resetRecoveryReviews}>
+            Reset candidate reviews
+          </button>
+        </div>
       </section>
 
       <section className="timeline-section" aria-labelledby="timeline-heading">

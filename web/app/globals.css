@@ -642,6 +642,89 @@ footer {
   margin: 18px 0 0;
 }
 
+.recovery-section {
+  margin: 52px 0 34px;
+  padding: 28px;
+  border: 1px solid rgba(31, 78, 143, 0.32);
+  background: rgba(255, 253, 243, 0.7);
+  box-shadow: 0 7px 18px rgba(46, 45, 41, 0.08);
+}
+
+.recovery-intro {
+  max-width: 820px;
+  margin: -10px 0 20px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.recovery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.recovery-card {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px dashed rgba(31, 78, 143, 0.55);
+  background: var(--paper-light);
+  color: var(--graphite);
+  text-align: left;
+}
+
+.recovery-card:hover,
+.recovery-card.is-selected {
+  border-style: solid;
+  border-color: var(--blue);
+  box-shadow: inset 4px 0 0 var(--blue);
+}
+
+.recovery-card > span,
+.recovery-card > small {
+  color: var(--muted);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.recovery-card > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recovery-card.accepted {
+  background: rgba(31, 78, 143, 0.09);
+}
+
+.recovery-card.rejected {
+  opacity: 0.58;
+  text-decoration: line-through;
+}
+
+.recovery-card.uncertain {
+  background: rgba(242, 230, 169, 0.45);
+}
+
+.recovery-actions {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+
+.recovery-actions p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .timeline-section {
   margin: 52px 0 34px;
   padding: 28px 0 34px;
@@ -944,6 +1027,10 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .recovery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .table-actions {
     width: 100%;
   }
@@ -971,6 +1058,19 @@ footer {
 
   .segment-focus-bar span {
     white-space: normal;
+  }
+
+  .recovery-section {
+    padding: 20px;
+  }
+
+  .recovery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .recovery-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .sound-controls {
