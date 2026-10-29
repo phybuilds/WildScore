@@ -992,6 +992,10 @@ export default function SavedAnalysisViewer() {
       return;
     }
     const annotation = createMissingAnimalAnnotation({
+      clipId: bundle.clip.clip_id,
+      processedFps: bundle.clip.processed_fps,
+      mediaWidth: bundle.clip.width,
+      mediaHeight: bundle.clip.height,
       frameIndex: currentFrame,
       timestampSeconds: currentFrame / bundle.clip.processed_fps,
       broadLabel: missingAnimalLabel,

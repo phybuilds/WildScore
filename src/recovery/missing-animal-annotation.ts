@@ -21,6 +21,10 @@ interface ContainedVideoDrag {
 
 export interface MissingAnimalAnnotation {
   schema: "wildscore-missing-animal-annotation-v1";
+  clip_id: string;
+  processed_fps: number;
+  media_width: number;
+  media_height: number;
   frame_index: number;
   timestamp_s: number;
   broad_label: string | null;
@@ -84,16 +88,30 @@ export function containedVideoDragToMediaBox({
 }
 
 export function createMissingAnimalAnnotation({
+  clipId,
+  processedFps,
+  mediaWidth,
+  mediaHeight,
   frameIndex,
   timestampSeconds,
   broadLabel,
   box,
 }: {
+  clipId: string;
+  processedFps: number;
+  mediaWidth: number;
+  mediaHeight: number;
   frameIndex: number;
   timestampSeconds: number;
   broadLabel?: string;
   box: InclusiveMediaBox;
 }): MissingAnimalAnnotation {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/u.test(clipId)) {
+    throw new Error("clipId is invalid.");
+  }
+  requirePositive(processedFps, "processedFps");
+  requirePositiveInteger(mediaWidth, "mediaWidth");
+  requirePositiveInteger(mediaHeight, "mediaHeight");
   if (!Number.isInteger(frameIndex) || frameIndex < 0) {
     throw new Error("frameIndex must be a non-negative integer.");
   }
@@ -112,6 +130,10 @@ export function createMissingAnimalAnnotation({
   }
   return {
     schema: "wildscore-missing-animal-annotation-v1",
+    clip_id: clipId,
+    processed_fps: processedFps,
+    media_width: mediaWidth,
+    media_height: mediaHeight,
     frame_index: frameIndex,
     timestamp_s: timestampSeconds,
     broad_label: label,

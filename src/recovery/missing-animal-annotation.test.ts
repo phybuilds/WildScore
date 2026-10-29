@@ -52,16 +52,36 @@ test("rejects non-integer source-media dimensions", () => {
 
 test("creates an exportable annotation without requiring a species label", () => {
   assert.deepEqual(createMissingAnimalAnnotation({
+    clipId: "clip-01",
+    processedFps: 10,
+    mediaWidth: 100,
+    mediaHeight: 80,
     frameIndex: 12,
     timestampSeconds: 1.2,
     broadLabel: "  ",
     box: { left: 10, top: 20, right: 30, bottom: 40 },
   }), {
     schema: "wildscore-missing-animal-annotation-v1",
+    clip_id: "clip-01",
+    processed_fps: 10,
+    media_width: 100,
+    media_height: 80,
     frame_index: 12,
     timestamp_s: 1.2,
     broad_label: null,
     prompt_kind: "box",
     box: { left: 10, top: 20, right: 30, bottom: 40 },
   });
+});
+
+test("rejects an unsafe clip identifier", () => {
+  assert.throws(() => createMissingAnimalAnnotation({
+    clipId: "../other-clip",
+    processedFps: 10,
+    mediaWidth: 100,
+    mediaHeight: 80,
+    frameIndex: 12,
+    timestampSeconds: 1.2,
+    box: { left: 10, top: 20, right: 30, bottom: 40 },
+  }), /clipId is invalid/u);
 });
