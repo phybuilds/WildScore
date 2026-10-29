@@ -1,3 +1,4 @@
+import LocalEvaluationClips from "./local-evaluation-clips";
 import SavedAnalysisViewer from "./saved-analysis-viewer";
 
 export default function Home() {
@@ -9,6 +10,7 @@ export default function Home() {
           <h1>WildScore</h1>
           <p className="handwritten">a field log you can listen to</p>
         </div>
+        <LocalEvaluationClips />
       </header>
 
       <aside className="disclosure" aria-label="Saved analysis disclosure">
