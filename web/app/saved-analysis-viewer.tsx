@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { buildEventCues } from "../../src/audio/cue-builder";
 import { planCueWindow } from "../../src/audio/scheduler";
@@ -26,6 +33,11 @@ import {
 import { buildEventCsv } from "../../src/export/event-csv";
 import { buildRecoveryCsv } from "../../src/export/recovery-csv";
 import { buildDevelopmentEvidenceSummary } from "../../src/evaluation/evidence-summary";
+import {
+  containedVideoDragToMediaBox,
+  createMissingAnimalAnnotation,
+  type InclusiveMediaBox,
+} from "../../src/recovery/missing-animal-annotation";
 import {
   bundleKey,
   createInitialReviewState,
@@ -141,6 +153,10 @@ export default function SavedAnalysisViewer() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [mediaExpanded, setMediaExpanded] = useState(false);
   const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
+  const [missingAnimalMode, setMissingAnimalMode] = useState(false);
+  const [missingAnimalBox, setMissingAnimalBox] = useState<InclusiveMediaBox | null>(null);
+  const [missingAnimalLabel, setMissingAnimalLabel] = useState("");
+  const [missingAnimalError, setMissingAnimalError] = useState("");
   const [reviewState, dispatchReview] = useReducer(
     reviewReducer,
     EMPTY_REVIEW_STATE,
@@ -152,6 +168,7 @@ export default function SavedAnalysisViewer() {
     EMPTY_RECOVERY_REVIEW_STATE,
   );
   const videoRef = useRef<HTMLVideoElement>(null);
+  const missingAnimalDragStartRef = useRef<{ x: number; y: number } | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
   const recoveryMenuRef = useRef<HTMLDetailsElement>(null);
   const timelineListRef = useRef<HTMLDivElement>(null);
@@ -924,6 +941,78 @@ export default function SavedAnalysisViewer() {
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
+  function beginMissingAnimalReport() {
+    const video = videoRef.current;
+    if (video) video.pause();
+    cancelAudioSchedule();
+    setReplayEnd(null);
+    setMissingAnimalBox(null);
+    setMissingAnimalError("");
+    setMissingAnimalMode(true);
+    setAnnouncement("Missing-animal report mode. Drag a box around the visible animal.");
+  }
+
+  function cancelMissingAnimalReport() {
+    missingAnimalDragStartRef.current = null;
+    setMissingAnimalMode(false);
+    setMissingAnimalBox(null);
+    setMissingAnimalError("");
+    setAnnouncement("Missing-animal report cancelled.");
+  }
+
+  function missingAnimalPoint(
+    event: ReactPointerEvent<SVGSVGElement>,
+  ): { x: number; y: number } {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+  }
+
+  function updateMissingAnimalBox(event: ReactPointerEvent<SVGSVGElement>) {
+    const start = missingAnimalDragStartRef.current;
+    if (!start || !bundle) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    try {
+      setMissingAnimalBox(containedVideoDragToMediaBox({
+        mediaWidth: bundle.clip.width,
+        mediaHeight: bundle.clip.height,
+        viewportWidth: bounds.width,
+        viewportHeight: bounds.height,
+        start,
+        end: missingAnimalPoint(event),
+      }));
+      setMissingAnimalError("");
+    } catch {
+      setMissingAnimalBox(null);
+    }
+  }
+
+  function downloadMissingAnimalAnnotation() {
+    if (!bundle || !missingAnimalBox) {
+      setMissingAnimalError("Draw a box around the visible animal first.");
+      return;
+    }
+    const annotation = createMissingAnimalAnnotation({
+      frameIndex: currentFrame,
+      timestampSeconds: currentFrame / bundle.clip.processed_fps,
+      broadLabel: missingAnimalLabel,
+      box: missingAnimalBox,
+    });
+    const blob = new Blob([`${JSON.stringify(annotation, null, 2)}\n`], {
+      type: "application/json;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${bundle.clip.clip_id}-missing-animal-frame-${currentFrame}.json`;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    setMissingAnimalMode(false);
+    setAnnouncement(`Missing-animal annotation downloaded for frame ${currentFrame}.`);
+  }
+
   function resetReviews() {
     if (!bundle) return;
     dispatchReview({ type: "reset", bundle });
@@ -1280,6 +1369,40 @@ export default function SavedAnalysisViewer() {
                   );
                 })}
               </svg>
+              {missingAnimalMode && (
+                <svg
+                  className="missing-animal-overlay"
+                  viewBox={`0 0 ${readyBundle.clip.width} ${readyBundle.clip.height}`}
+                  preserveAspectRatio="xMidYMid meet"
+                  role="img"
+                  aria-label="Draw a box around the missed animal"
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) return;
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    missingAnimalDragStartRef.current = missingAnimalPoint(event);
+                    setMissingAnimalBox(null);
+                    setMissingAnimalError("");
+                  }}
+                  onPointerMove={(event) => updateMissingAnimalBox(event)}
+                  onPointerUp={(event) => {
+                    updateMissingAnimalBox(event);
+                    missingAnimalDragStartRef.current = null;
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                  }}
+                  onPointerCancel={() => {
+                    missingAnimalDragStartRef.current = null;
+                  }}
+                >
+                  {missingAnimalBox && (
+                    <rect
+                      x={missingAnimalBox.left}
+                      y={missingAnimalBox.top}
+                      width={missingAnimalBox.right - missingAnimalBox.left + 1}
+                      height={missingAnimalBox.bottom - missingAnimalBox.top + 1}
+                    />
+                  )}
+                </svg>
+              )}
               {analysisVisible && (
                 <div className="frame-readout" aria-live="off">
                   Frame {currentFrame} · {selectedGeometry.length > 0
@@ -1326,7 +1449,42 @@ export default function SavedAnalysisViewer() {
               <button type="button" onClick={() => void toggleWorkspaceFullscreen()}>
                 {workspaceFullscreen ? "Exit workspace fullscreen" : "Expand workspace"}
               </button>
+              {!missingAnimalMode && (
+                <button type="button" onClick={beginMissingAnimalReport}>
+                  Report missed animal
+                </button>
+              )}
             </div>
+            {missingAnimalMode && (
+              <div className="missing-animal-tool">
+                <p>
+                  Paused at frame {currentFrame}. Drag a box around one visible animal.
+                </p>
+                <label>
+                  Broad label <span>(optional)</span>
+                  <input
+                    type="text"
+                    maxLength={80}
+                    value={missingAnimalLabel}
+                    placeholder="e.g. antelope"
+                    onChange={(event) => setMissingAnimalLabel(event.currentTarget.value)}
+                  />
+                </label>
+                <button
+                  className="primary-action"
+                  type="button"
+                  disabled={!missingAnimalBox}
+                  onClick={downloadMissingAnimalAnnotation}
+                >
+                  Save annotation
+                </button>
+                <button type="button" onClick={cancelMissingAnimalReport}>Cancel</button>
+                <small>
+                  Saves JSON only. Footage is not uploaded and no model runs in the browser.
+                </small>
+                {missingAnimalError && <strong role="alert">{missingAnimalError}</strong>}
+              </div>
+            )}
             <div className="photo-caption">
               <span>
                 {formatTime(readyBundle.clip.processed_duration_s)} analysed at{" "}

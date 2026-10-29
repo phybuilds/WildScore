@@ -448,6 +448,52 @@ h2 {
   margin-left: auto;
 }
 
+.missing-animal-tool {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 0.8fr) auto auto;
+  gap: 8px 12px;
+  align-items: end;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(46, 45, 41, 0.2);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+}
+
+.missing-animal-tool p,
+.missing-animal-tool label {
+  margin: 0;
+}
+
+.missing-animal-tool label {
+  color: var(--blue-dark);
+  font-weight: 800;
+}
+
+.missing-animal-tool label span,
+.missing-animal-tool small {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.missing-animal-tool input {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--graphite);
+  background: #fffdf3;
+}
+
+.missing-animal-tool small,
+.missing-animal-tool strong {
+  grid-column: 1 / -1;
+}
+
+.missing-animal-tool strong {
+  color: var(--rust);
+}
+
 .playback-rates {
   display: inline-flex;
   gap: 4px;
@@ -483,6 +529,25 @@ h2 {
 
 .evidence-overlay.is-visible {
   opacity: 1;
+}
+
+.missing-animal-overlay {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+  background: rgba(20, 24, 20, 0.08);
+}
+
+.missing-animal-overlay rect {
+  fill: rgba(243, 216, 95, 0.08);
+  stroke: #f3d85f;
+  stroke-width: 2px;
+  stroke-dasharray: 7 5;
+  vector-effect: non-scaling-stroke;
 }
 
 .evidence-overlay rect {
@@ -1459,6 +1524,10 @@ footer {
   .table-actions button {
     flex: 1;
   }
+
+  .missing-animal-tool {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1507,6 +1576,11 @@ footer {
   .video-transport > button:last-child {
     width: auto;
     margin-left: 0;
+  }
+
+  .missing-animal-tool {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .viewer-loading {
