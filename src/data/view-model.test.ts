@@ -14,6 +14,7 @@ import {
   formatTime,
   frameAtTime,
   geometryAnchorTime,
+  segmentStartTime,
 } from "./view-model.ts";
 
 test("maps video time to a bounded processed frame", () => {
@@ -42,6 +43,15 @@ test("event anchors use analysed segment boundary frames", () => {
   assert.equal(eventAnchorFrame(disappearance, segment), 47);
   assert.equal(eventAnchorTime(appearance, segment, 10), 1.2);
   assert.equal(eventAnchorTime(disappearance, segment, 10), 4.7);
+});
+
+test("segment navigation always uses the first analysed frame", () => {
+  const segment = {
+    first_frame: 104,
+    start_s: 10.39,
+  } as PresenceSegment;
+  assert.equal(segmentStartTime(segment, 10), 10.4);
+  assert.equal(segmentStartTime(segment, 0), 10.39);
 });
 
 test("recovery navigation uses the earliest analysed geometry frame", () => {

@@ -41,6 +41,11 @@ export function eventAnchorTime(
   return eventAnchorFrame(event, segment) / fps;
 }
 
+export function segmentStartTime(segment: PresenceSegment, fps: number): number {
+  if (!Number.isFinite(fps) || fps <= 0) return segment.start_s;
+  return segment.first_frame / fps;
+}
+
 export function geometryAnchorTime(
   geometry: Pick<GeometryRecord, "frame_index">[],
   fps: number,

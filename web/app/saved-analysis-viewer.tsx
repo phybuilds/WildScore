@@ -20,6 +20,7 @@ import {
   frameAtTime,
   geometryAnchorTime,
   humanizeIdentifier,
+  segmentStartTime,
   type VisibleGeometry,
 } from "../../src/data/view-model";
 import { buildEventCsv } from "../../src/export/event-csv";
@@ -137,6 +138,9 @@ export default function SavedAnalysisViewer() {
   const [audioUnavailable, setAudioUnavailable] = useState(false);
   const [suppressedCueCount, setSuppressedCueCount] = useState(0);
   const [announcement, setAnnouncement] = useState("");
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [mediaExpanded, setMediaExpanded] = useState(false);
+  const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
   const [reviewState, dispatchReview] = useReducer(
     reviewReducer,
     EMPTY_REVIEW_STATE,
@@ -559,6 +563,14 @@ export default function SavedAnalysisViewer() {
   );
 
   useEffect(() => {
+    function handleFullscreenChange() {
+      setWorkspaceFullscreen(document.fullscreenElement === workspaceRef.current);
+    }
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
     if (!selectedSegmentId) return;
     const list = timelineListRef.current;
     const row = timelineRowRefs.current.get(selectedSegmentId);
@@ -638,11 +650,42 @@ export default function SavedAnalysisViewer() {
       video.pause();
       video.currentTime = Math.max(
         0,
-        firstEvent
-          ? eventAnchorTime(firstEvent, segment, bundle.clip.processed_fps)
-          : segment.first_frame / bundle.clip.processed_fps,
+        segmentStartTime(segment, bundle.clip.processed_fps),
       );
       setCurrentTime(video.currentTime);
+    }
+  }
+
+  function skipVideo(seconds: number) {
+    const video = videoRef.current;
+    if (!video || !bundle) return;
+    setReplayEnd(null);
+    cancelAudioSchedule();
+    resetSuppressedCues();
+    video.currentTime = Math.min(
+      bundle.clip.processed_duration_s,
+      Math.max(0, video.currentTime + seconds),
+    );
+    setCurrentTime(video.currentTime);
+    setAnnouncement(`${seconds < 0 ? "Back" : "Forward"} ${Math.abs(seconds)} seconds.`);
+  }
+
+  function changePlaybackRate(rate: number) {
+    const video = videoRef.current;
+    if (!video) return;
+    video.playbackRate = rate;
+    setPlaybackRate(rate);
+    setAnnouncement(`Playback speed ${rate} times.`);
+  }
+
+  async function toggleWorkspaceFullscreen() {
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+    try {
+      if (document.fullscreenElement === workspace) await document.exitFullscreen();
+      else await workspace.requestFullscreen();
+    } catch {
+      setAnnouncement("Workspace fullscreen is unavailable in this browser.");
     }
   }
 
@@ -1110,7 +1153,7 @@ export default function SavedAnalysisViewer() {
         {announcement}
       </p>
       <section
-        className="workspace"
+        className={`workspace ${mediaExpanded ? "is-media-expanded" : ""}`}
         aria-labelledby="workspace-heading"
         ref={workspaceRef}
       >
@@ -1135,6 +1178,8 @@ export default function SavedAnalysisViewer() {
               <video
                 ref={videoRef}
                 controls
+                controlsList="nofullscreen nodownload noremoteplayback"
+                disablePictureInPicture
                 playsInline
                 preload="metadata"
                 src={`/demo/${encodeURIComponent(readyBundle.clip.display_media)}`}
@@ -1172,6 +1217,7 @@ export default function SavedAnalysisViewer() {
                   startVideoFrameSync(event.currentTarget);
                 }}
                 onRateChange={(event) => {
+                  setPlaybackRate(event.currentTarget.playbackRate);
                   cancelAudioSchedule();
                   if (!event.currentTarget.paused) {
                     startAudioSchedule(event.currentTarget);
@@ -1249,6 +1295,37 @@ export default function SavedAnalysisViewer() {
                       : "selected segment not visible at this frame"}
                 </div>
               )}
+            </div>
+            <div className="video-transport" aria-label="Video navigation controls">
+              <button type="button" onClick={() => skipVideo(-2)}>
+                Back 2s
+              </button>
+              <button type="button" onClick={() => skipVideo(2)}>
+                Forward 2s
+              </button>
+              <div className="playback-rates" aria-label="Playback speed">
+                {[1, 2, 5, 10].map((rate) => (
+                  <button
+                    className={playbackRate === rate ? "is-active" : undefined}
+                    type="button"
+                    aria-pressed={playbackRate === rate}
+                    onClick={() => changePlaybackRate(rate)}
+                    key={rate}
+                  >
+                    {rate}×
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                aria-pressed={mediaExpanded}
+                onClick={() => setMediaExpanded((expanded) => !expanded)}
+              >
+                {mediaExpanded ? "Balanced split" : "Larger video"}
+              </button>
+              <button type="button" onClick={() => void toggleWorkspaceFullscreen()}>
+                {workspaceFullscreen ? "Exit workspace fullscreen" : "Expand workspace"}
+              </button>
             </div>
             <div className="photo-caption">
               <span>
