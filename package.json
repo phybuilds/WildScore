@@ -10,7 +10,7 @@
   },
   "packageManager": "npm@11.19.1",
   "scripts": {
-    "test": "npm run test:sam-parser && npm run test:sam-run-config && npm run test:sam-object-prompt && npm run test:events && npm run test:track-overlap && npm run test:schema && npm run test:recovery-schema && npm run test:public-demo && npm run test:view-model && npm run test:review && npm run test:recovery-review && npm run test:csv && npm run test:recovery-csv && npm run test:audio && npm run test:scheduler && npm run test:evaluation && npm run test:evidence-summary && npm run test:review-flow",
+    "test": "npm run test:sam-parser && npm run test:sam-run-config && npm run test:sam-object-prompt && npm run test:missing-animal-annotation && npm run test:events && npm run test:track-overlap && npm run test:schema && npm run test:recovery-schema && npm run test:public-demo && npm run test:view-model && npm run test:review && npm run test:recovery-review && npm run test:csv && npm run test:recovery-csv && npm run test:audio && npm run test:scheduler && npm run test:evaluation && npm run test:evidence-summary && npm run test:review-flow",
     "dev": "next dev web --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit -p web/tsconfig.json",
     "check:public": "node scripts/check-public-output.mjs",
@@ -28,6 +28,7 @@
     "test:sam-parser": "node --test scripts/lib/sam-output.test.mjs",
     "test:sam-run-config": "node --test scripts/lib/sam-run-config.test.mjs",
     "test:sam-object-prompt": "node --test scripts/lib/sam-object-prompt.test.mjs",
+    "test:missing-animal-annotation": "node --test src/recovery/missing-animal-annotation.test.ts",
     "test:schema": "node --test src/data/bundle-schema.test.ts",
     "test:recovery-schema": "node --test src/data/recovery-schema.test.ts",
     "test:public-demo": "node --test src/data/public-demo.test.ts",
