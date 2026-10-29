@@ -53,10 +53,24 @@ test("accepts a bounded held-out evaluation result", () => {
     sam_latency_ms: 6000,
     total_latency_ms: 12000,
     remote_file_deletion_confirmed: true,
+    label_result: {
+      reference_state: "frozen_before_model_output",
+      reference_label: "wolf",
+      proposed_label: "wolf",
+      matched_reference: true,
+      model: "muse-spark-1.3",
+      provider: "Meta Model API",
+      prompt_context: "image only; no location or source title",
+      latency_ms: 2500,
+    },
   };
   assert.equal(
     validateBundle(bundle).evaluation.held_out_result?.matched_predictions,
     2,
+  );
+  assert.equal(
+    validateBundle(bundle).evaluation.held_out_result?.label_result?.proposed_label,
+    "wolf",
   );
 });
 
@@ -80,6 +94,40 @@ test("rejects an unsafe held-out source URL", () => {
     sam_latency_ms: 6000,
     total_latency_ms: 12000,
     remote_file_deletion_confirmed: true,
+  };
+  assert.throws(() => validateBundle(bundle), /invalid top-level fields/u);
+});
+
+test("rejects an invalid held-out label result", () => {
+  const bundle = validBundle();
+  bundle.evaluation.held_out_result = {
+    source_title: "Wolf",
+    source_url: "https://example.test/wolf",
+    source_credit: "Public source",
+    licence: "Public domain",
+    reference_state: "frozen_before_model_output",
+    model: "sam-3.1",
+    provider: "Meta Model API",
+    processed_frames: 100,
+    matcher: "one-to-one",
+    tolerance_s: 1,
+    reference_event_count: 2,
+    matched_predictions: 2,
+    missed_events: 0,
+    false_alarms: 0,
+    sam_latency_ms: 6000,
+    total_latency_ms: 12000,
+    remote_file_deletion_confirmed: true,
+    label_result: {
+      reference_state: "frozen_before_model_output",
+      reference_label: "wolf",
+      proposed_label: "../../wolf",
+      matched_reference: true,
+      model: "muse-spark-1.3",
+      provider: "Meta Model API",
+      prompt_context: "image only",
+      latency_ms: 2500,
+    },
   };
   assert.throws(() => validateBundle(bundle), /invalid top-level fields/u);
 });

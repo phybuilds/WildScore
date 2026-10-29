@@ -151,10 +151,21 @@ test("surfaces a stored held-out result without recomputing it", () => {
     sam_latency_ms: 6000,
     total_latency_ms: 12000,
     remote_file_deletion_confirmed: true,
+    label_result: {
+      reference_state: "frozen_before_model_output",
+      reference_label: "wolf",
+      proposed_label: "wolf",
+      matched_reference: true,
+      model: "muse-spark-1.3",
+      provider: "Meta Model API",
+      prompt_context: "image only; no location or source title",
+      latency_ms: 2500,
+    },
   };
   const summary = buildDevelopmentEvidenceSummary(bundle, recovery);
 
   assert.equal(summary.heldOutClipCount, 1);
   assert.equal(summary.heldOutResult?.matched_predictions, 2);
+  assert.equal(summary.heldOutResult?.label_result?.matched_reference, true);
   assert.match(summary.limitations.join(" "), /remains separate/u);
 });

@@ -76,6 +76,18 @@ export interface HeldOutEvaluationResult {
   sam_latency_ms: number;
   total_latency_ms: number;
   remote_file_deletion_confirmed: boolean;
+  label_result?: HeldOutLabelResult | null;
+}
+
+export interface HeldOutLabelResult {
+  reference_state: string;
+  reference_label: string;
+  proposed_label: string;
+  matched_reference: boolean;
+  model: string;
+  provider: string;
+  prompt_context: string;
+  latency_ms: number;
 }
 
 export interface WildScoreBundle {
@@ -132,6 +144,20 @@ function isNonNegativeInteger(value: unknown): value is number {
   return Number.isInteger(value) && Number(value) >= 0;
 }
 
+function isHeldOutLabelResult(value: unknown): value is HeldOutLabelResult {
+  if (!isRecord(value)) return false;
+  return (
+    isBoundedString(value.reference_state, 120) &&
+    isSafeId(value.reference_label) &&
+    isSafeId(value.proposed_label) &&
+    typeof value.matched_reference === "boolean" &&
+    isBoundedString(value.model, 120) &&
+    isBoundedString(value.provider, 120) &&
+    isBoundedString(value.prompt_context, 200) &&
+    isNonNegativeInteger(value.latency_ms)
+  );
+}
+
 function isHeldOutEvaluationResult(value: unknown): value is HeldOutEvaluationResult {
   if (!isRecord(value)) return false;
   return (
@@ -153,7 +179,12 @@ function isHeldOutEvaluationResult(value: unknown): value is HeldOutEvaluationRe
     isNonNegativeInteger(value.false_alarms) &&
     isNonNegativeInteger(value.sam_latency_ms) &&
     isNonNegativeInteger(value.total_latency_ms) &&
-    typeof value.remote_file_deletion_confirmed === "boolean"
+    typeof value.remote_file_deletion_confirmed === "boolean" &&
+    (
+      value.label_result === undefined ||
+      value.label_result === null ||
+      isHeldOutLabelResult(value.label_result)
+    )
   );
 }
 

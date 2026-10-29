@@ -1904,12 +1904,24 @@ export default function SavedAnalysisViewer() {
                   : "Not available"}
               </dd>
             </div>
+            <div>
+              <dt>Held-out label check</dt>
+              <dd>
+                {evidence.heldOutResult?.label_result
+                  ? `${humanizeIdentifier(evidence.heldOutResult.label_result.proposed_label)} proposed · ${
+                      evidence.heldOutResult.label_result.matched_reference
+                        ? "matched frozen reference"
+                        : "did not match frozen reference"
+                    }`
+                  : "Not available"}
+              </dd>
+            </div>
           </dl>
           <p className="evidence-caveat">
             {evidence.heldOutResult ? (
               <>
-                One short, static, uncrowded wolf clip with {evidence.heldOutResult.reference_event_count} eligible boundary events;
-                not a general accuracy estimate. Source: {" "}
+                One short, static, uncrowded wolf clip with {evidence.heldOutResult.reference_event_count} eligible boundary events and one image-only Spark label proposal;
+                neither result is a general accuracy estimate. Source: {" "}
                 <a
                   href={evidence.heldOutResult.source_url}
                   target="_blank"
