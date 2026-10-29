@@ -1347,7 +1347,7 @@ export default function SavedAnalysisViewer() {
                 id="segment-focus"
                 value={
                   selectedRecovery
-                    ? "__recovery__"
+                    ? `__recovery__:${selectedRecovery.candidate_id}`
                     : showAllSegments
                       ? "__all__"
                       : selectedSegmentId ?? ""
@@ -1359,17 +1359,32 @@ export default function SavedAnalysisViewer() {
                     setShowAllSegments(true);
                     setAnalysisVisible(true);
                     audioScopeRef.current = { kind: "all" };
-                  } else if (value !== "__recovery__") {
+                  } else if (value.startsWith("__recovery__:")) {
+                    const candidateId = value.slice("__recovery__:".length);
+                    const candidate = recovery?.candidates.find(
+                      (item) => item.candidate_id === candidateId,
+                    );
+                    if (candidate) selectRecoveryCandidate(candidate);
+                  } else {
                     selectSegment(value);
                   }
                 }}
               >
-                {selectedRecovery && (
-                  <option value="__recovery__">
-                    Recovery candidate · {selectedRecovery.candidate_id}
-                  </option>
-                )}
                 <option value="__all__">View all segments</option>
+                {recovery && [...recovery.candidates]
+                  .sort(
+                    (left, right) =>
+                      left.start_s - right.start_s ||
+                      left.candidate_id.localeCompare(right.candidate_id),
+                  )
+                  .map((candidate) => (
+                    <option
+                      value={`__recovery__:${candidate.candidate_id}`}
+                      key={candidate.candidate_id}
+                    >
+                      Recovery · {humanizeIdentifier(candidate.suggested_label)} · {formatTime(candidate.start_s)} · {candidate.candidate_id}
+                    </option>
+                  ))}
                 {[...readyBundle.segments]
                   .sort(
                     (left, right) =>
