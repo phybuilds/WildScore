@@ -1,6 +1,6 @@
 import type { GeometryRecord } from "./bundle-schema";
 
-export type RecoveryPrompt = "antelope" | "hippopotamus";
+export type RecoveryPrompt = "antelope" | "hippopotamus" | "reviewer_box";
 
 export interface RecoveryCandidate {
   candidate_id: string;
@@ -91,7 +91,7 @@ function assertCandidate(value: unknown, index: number) {
   if (!isRecord(value)) throw new Error(`candidates[${index}] is invalid`);
   if (
     !isSafeId(value.candidate_id) ||
-    !["antelope", "hippopotamus"].includes(String(value.source_prompt)) ||
+    !["antelope", "hippopotamus", "reviewer_box"].includes(String(value.source_prompt)) ||
     !isSafeId(value.source_object_id) || !isSafeId(value.source_run_id) ||
     !isSafeId(value.suggested_label) || !Number.isInteger(value.first_frame) ||
     !Number.isInteger(value.last_frame) || !isFiniteNumber(value.start_s) ||

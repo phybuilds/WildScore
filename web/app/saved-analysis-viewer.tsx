@@ -1499,8 +1499,9 @@ export default function SavedAnalysisViewer() {
                 </summary>
                 <div>
                   <p className="review-copy">
-                    A targeted Meta SAM pass recovered this track after the generic
-                    pass missed it. It has not been merged into the saved analysis.
+                    {selectedRecovery.source_prompt === "reviewer_box"
+                      ? "A reviewer-drawn box prompted Meta SAM to recover this track after the generic pass missed it. It has not been merged into the saved analysis."
+                      : "A targeted Meta SAM pass recovered this track after the generic pass missed it. It has not been merged into the saved analysis."}
                   </p>
                   <p className="review-instruction">
                     Keep it only if the box follows one visible animal. This decision
@@ -1559,6 +1560,11 @@ export default function SavedAnalysisViewer() {
                     Accepting this label does not confirm an individual identity or an entry/exit event.
                   </p>
                 </div>
+              )}
+              {!selectedRecoveryProposal && selectedRecovery.source_prompt === "reviewer_box" && (
+                <p className="small-note">
+                  No blind model label was generated for this reviewer-box recovery. The displayed broad label is a human annotation.
+                </p>
               )}
               <button className="wide-button" type="button" onClick={replaySelectedRecovery}>
                 Replay candidate with 1-second context

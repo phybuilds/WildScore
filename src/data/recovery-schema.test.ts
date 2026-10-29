@@ -45,6 +45,12 @@ test("accepts a namespaced additive recovery candidate", () => {
   assert.equal(validateRecoveryCandidateBundle(fixture()).candidates.length, 1);
 });
 
+test("accepts a reviewer box as an additive recovery source", () => {
+  const value = fixture();
+  value.candidates[0].source_prompt = "reviewer_box";
+  assert.equal(validateRecoveryCandidateBundle(value).candidates[0].source_prompt, "reviewer_box");
+});
+
 test("accepts one Meta label proposal per known candidate", () => {
   const value = fixture();
   value.label_proposals.push({
