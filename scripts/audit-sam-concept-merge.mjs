@@ -8,6 +8,7 @@ import { auditTargetTracks } from "./lib/track-overlap.mjs";
 const ROOT = path.resolve("private/model-experiments");
 const OUTPUT_PATH = path.resolve("private/evaluation/sam-concept-merge-audit.json");
 const CONFIG = { iouThreshold: 0.5, minimumSharedFrames: 5, minimumHighIouRatio: 0.6 };
+const TARGETED_PROMPTS = ["antelope", "baboon", "hippopotamus"];
 
 async function* eventsFromNdjson(filePath) {
   for (const line of (await readFile(filePath, "utf8")).split("\n")) {
@@ -58,10 +59,9 @@ async function tracks(relativeRoot, prompt) {
 }
 
 const base = await tracks("sam-temporal-15fps", "animal");
-const targeted = await Promise.all([
-  tracks("sam-targeted-recall/antelope", "antelope"),
-  tracks("sam-targeted-recall/hippopotamus", "hippopotamus"),
-]);
+const targeted = await Promise.all(
+  TARGETED_PROMPTS.map((prompt) => tracks(`sam-targeted-recall/${prompt}`, prompt)),
+);
 const prompts = targeted.map((source) => {
   const audit = auditTargetTracks(base.tracks, source.tracks, CONFIG);
   return {

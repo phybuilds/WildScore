@@ -7,11 +7,11 @@ import { parseVideoStream, recordsOfKind } from "@meta-sam/parser";
 
 const execFileAsync = promisify(execFile);
 const allowedArguments = new Set([
-  "--prompt=animal", "--prompt=antelope", "--prompt=hippopotamus",
+  "--prompt=animal", "--prompt=antelope", "--prompt=baboon", "--prompt=hippo", "--prompt=hippopotamus",
 ]);
 if (process.argv.length > 3 || process.argv.slice(2).some((argument) => !allowedArguments.has(argument))) {
   throw new Error(
-    "Usage: node scripts/render-sam-diagnostic-frames.mjs [--prompt=animal|antelope|hippopotamus]",
+    "Usage: node scripts/render-sam-diagnostic-frames.mjs [--prompt=animal|antelope|baboon|hippo|hippopotamus]",
   );
 }
 const PROMPT = process.argv[2]?.split("=")[1] ?? "animal";

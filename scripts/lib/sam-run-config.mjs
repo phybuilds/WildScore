@@ -5,6 +5,8 @@ const ALLOWED_ARGUMENTS = new Set([
   "--fps=15",
   "--prompt=animal",
   "--prompt=antelope",
+  "--prompt=baboon",
+  "--prompt=hippo",
   "--prompt=hippopotamus",
 ]);
 
@@ -22,7 +24,7 @@ export function resolveSamRunConfig(argumentsList) {
     promptArguments.length > 1
   ) {
     throw new Error(
-      "Usage: node scripts/meta-feasibility.mjs [--clip=hero|--clip=heldout-02] [--fps=10|--fps=15] [--prompt=animal|antelope|hippopotamus]",
+      "Usage: node scripts/meta-feasibility.mjs [--clip=hero|--clip=heldout-02] [--fps=10|--fps=15] [--prompt=animal|antelope|baboon|hippo|hippopotamus]",
     );
   }
 

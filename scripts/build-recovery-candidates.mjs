@@ -9,6 +9,7 @@ const EXPERIMENT_ROOT = path.resolve("private/model-experiments/sam-targeted-rec
 const AUDIT_PATH = path.resolve("private/evaluation/sam-concept-merge-audit.json");
 const OUTPUT_PATH = path.resolve("private/bundles/clip-01/recovery-candidates.json");
 const FPS = 15;
+const SUPPORTED_PROMPTS = new Set(["antelope", "baboon", "hippopotamus"]);
 
 async function* eventsFromNdjson(filePath) {
   for (const line of (await readFile(filePath, "utf8")).split("\n")) {
@@ -28,7 +29,7 @@ if (audit.status !== "completed" || audit.decision !== "audit_only_no_automatic_
 const candidates = [];
 let media = null;
 for (const promptAudit of audit.prompts) {
-  if (!["antelope", "hippopotamus"].includes(promptAudit.prompt)) {
+  if (!SUPPORTED_PROMPTS.has(promptAudit.prompt)) {
     throw new Error("The merge audit contained an unsupported prompt.");
   }
   const runDirectory = path.join(EXPERIMENT_ROOT, promptAudit.prompt, promptAudit.run_id);

@@ -64,19 +64,21 @@ async function inspect(relativeRoot, prompt) {
 
 const animal = await inspect("sam-temporal-15fps", "animal");
 const antelope = await inspect("sam-targeted-recall/antelope", "antelope");
+const hippo = await inspect("sam-targeted-recall/hippo", "hippo");
 const hippopotamus = await inspect("sam-targeted-recall/hippopotamus", "hippopotamus");
 const report = {
   status: "completed",
   comparison_kind: "development_targeted_recall_gate",
   animal,
   antelope,
+  hippo,
   hippopotamus,
   automated_gate: {
     antelope_more_boxes_on_all_reviewed_frames: antelope.frames.every(
       (frame, index) => frame.box_count > animal.frames[index].box_count,
     ),
     two_hippo_region_boxes_at_18_seconds:
-      hippopotamus.frames.find((frame) => frame.frame_index === 270)?.hippo_region_box_count >= 2,
+      hippo.frames.find((frame) => frame.frame_index === 270)?.hippo_region_box_count >= 2,
   },
   interpretation_limits: [
     "Prompt-specific object IDs are response-local and cannot be treated as shared identities.",

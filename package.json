@@ -47,6 +47,8 @@
     "compare:sam-temporal": "node scripts/compare-sam-temporal-runs.mjs",
     "diagnose:sam-15fps": "node scripts/render-sam-diagnostic-frames.mjs",
     "experiment:sam-antelope": "node --env-file=.env.local scripts/meta-feasibility.mjs --fps=15 --prompt=antelope",
+    "experiment:sam-baboon": "node --env-file=.env.local scripts/meta-feasibility.mjs --fps=15 --prompt=baboon",
+    "experiment:sam-hippo": "node --env-file=.env.local scripts/meta-feasibility.mjs --fps=15 --prompt=hippo",
     "experiment:sam-hippopotamus": "node --env-file=.env.local scripts/meta-feasibility.mjs --fps=15 --prompt=hippopotamus",
     "evaluate:sam-targeted-recall": "node scripts/evaluate-sam-targeted-recall.mjs",
     "audit:sam-concept-merge": "node scripts/audit-sam-concept-merge.mjs",
