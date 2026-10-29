@@ -6,7 +6,12 @@
 !**/.env.example
 
 private/
-web/public/demo/
+web/public/demo/*
+!web/public/demo/ATTRIBUTION.txt
+!web/public/demo/bundle.json
+!web/public/demo/manifest.json
+!web/public/demo/recovery-candidates.json
+!web/public/demo/wildscore-field-demo.mp4
 node_modules/
 .next/
 out/

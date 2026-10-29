@@ -1,0 +1,21 @@
+{
+  "schema": "wildscore-demo-manifest-v1",
+  "clip_id": "clip-01",
+  "replay_mode": "cached_saved_analysis",
+  "inference_required": false,
+  "models": [
+    "sam-3.1",
+    "muse-spark-1.3"
+  ],
+  "media": {
+    "creator": "WildScore project",
+    "licence": "CC BY-NC 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by-nc/4.0/"
+  },
+  "assets": {
+    "ATTRIBUTION.txt": "69552bf10def992afa9d1890ad6b98b0e299410c7f5389340f9e6ced7c3ad128",
+    "bundle.json": "5cae85c917976880bb8e232400ca97d5da6af5701ec2068ed5fd2f6a733d7be3",
+    "recovery-candidates.json": "a50100177093ff9ac8cdb03a87eddf0318fd165f9c88b20f99a2fb20f60bcf39",
+    "wildscore-field-demo.mp4": "26c7bed1df0a6349d4856d6d0a4d32682020a28d454577d63fe3638d6823d336"
+  }
+}

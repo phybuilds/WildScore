@@ -9,8 +9,9 @@ saved-result review loop. A real private clip completed the SAM and Spark
 pipeline, parser validation and deterministic presence/event bundle generation.
 The viewer synchronises saved geometry with video, keeps event and label reviews
 independent, replays evidence and exports every proposal to CSV with its review
-status. Private media, raw model output and generated bundles are not included in
-this repository.
+status. Source media and raw model output remain private. The repository includes
+one approved, sanitised demo excerpt and a reviewed cached-result bundle so the
+review workflow can run without a key or network model call.
 
 ## Security boundary
 
@@ -59,15 +60,22 @@ for bounded label evidence. They preserve immutable machine proposals separately
 from human review corrections. Inference outputs remain private until a specific
 bundle is reviewed for publication.
 
-## Local viewer
+## Keyless cached demo
 
-The repository intentionally contains no footage or generated result bundle. If
-reviewed local demo assets exist in the ignored private workspace, prepare the
-ignored viewer copies, run the complete test suite and start the loopback-only
-development server:
+After installing the locked dependencies, verify, build and serve the bundled
+cached analysis on the loopback interface:
 
 ```bash
-npm run demo:prepare
+npm run demo -- --check
+npm run demo
+```
+
+The demo command verifies SHA-256 hashes before building, never calls a model and
+does not pass `MODEL_API_KEY` to the static build. The included field excerpt is
+attributed to the WildScore project and licensed CC BY-NC 4.0; see the bundled
+attribution file. For development work, use:
+
+```bash
 npm test
 npm run typecheck
 npm run build
