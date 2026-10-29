@@ -257,14 +257,16 @@ h2 {
 
 .disclosure {
   display: grid;
-  gap: 6px;
-  width: min(760px, 100%);
-  margin: 26px 0 30px;
-  padding: 18px 22px;
+  grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.15fr);
+  gap: 18px;
+  width: 100%;
+  margin: 16px 0 22px;
+  padding: 13px 20px;
   border-left: 5px solid #c49a22;
   background: #f2e6a9;
   box-shadow: 0 6px 16px rgba(46, 45, 41, 0.12);
-  line-height: 1.45;
+  line-height: 1.35;
+  align-items: center;
 }
 
 .disclosure span {
@@ -1332,6 +1334,11 @@ footer {
 @media (max-width: 850px) {
   .notebook-shell {
     width: min(100% - 28px, 680px);
+  }
+
+  .disclosure {
+    grid-template-columns: 1fr;
+    gap: 5px;
   }
 
   .workspace,

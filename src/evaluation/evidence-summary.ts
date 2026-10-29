@@ -1,4 +1,7 @@
-import type { WildScoreBundle } from "../data/bundle-schema";
+import type {
+  HeldOutEvaluationResult,
+  WildScoreBundle,
+} from "../data/bundle-schema";
 import type { RecoveryCandidateBundle } from "../data/recovery-schema";
 
 export interface DevelopmentEvidenceSummary {
@@ -9,6 +12,7 @@ export interface DevelopmentEvidenceSummary {
   reviewedRecoveryTrackCount: number;
   reviewedRecoveryLabelCount: number;
   heldOutClipCount: number;
+  heldOutResult: HeldOutEvaluationResult | null;
   models: string[];
   provider: string | null;
   samRuntimeMs: number | null;
@@ -58,12 +62,15 @@ export function buildDevelopmentEvidenceSummary(
       recoveryCandidateIds.has(review.candidate_id),
     ).length,
     heldOutClipCount: bundle.evaluation.held_out_clip_count,
+    heldOutResult: bundle.evaluation.held_out_result ?? null,
     models: stringValues(bundle.run.models),
     provider: typeof bundle.run.provider === "string" ? bundle.run.provider : null,
     samRuntimeMs: finiteNumber(bundle.run.sam_runtime_ms),
     samFramesProcessed: finiteNumber(bundle.run.sam_frames_processed),
     limitations: [
-      "Development-clip proposal review is not a held-out accuracy estimate.",
+      bundle.evaluation.held_out_result
+        ? "Development-clip proposal review remains separate from the bounded held-out result."
+        : "Development-clip proposal review is not a held-out accuracy estimate.",
       "Proposal review cannot measure recall or count animals the model did not propose.",
       ...bundle.evaluation.limitations,
     ],

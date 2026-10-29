@@ -58,6 +58,26 @@ export interface StoredReview {
   correction_note: string;
 }
 
+export interface HeldOutEvaluationResult {
+  source_title: string;
+  source_url: string;
+  source_credit: string;
+  licence: string;
+  reference_state: string;
+  model: string;
+  provider: string;
+  processed_frames: number;
+  matcher: string;
+  tolerance_s: number;
+  reference_event_count: number;
+  matched_predictions: number;
+  missed_events: number;
+  false_alarms: number;
+  sam_latency_ms: number;
+  total_latency_ms: number;
+  remote_file_deletion_confirmed: boolean;
+}
+
 export interface WildScoreBundle {
   schema_version: "0.1.0";
   clip: {
@@ -77,6 +97,7 @@ export interface WildScoreBundle {
   evaluation: {
     status: string;
     held_out_clip_count: number;
+    held_out_result?: HeldOutEvaluationResult | null;
     limitations: string[];
   };
 }
@@ -105,6 +126,35 @@ function isStringArray(value: unknown): value is string[] {
 
 function isBoundedString(value: unknown, maximum = 500): value is string {
   return typeof value === "string" && value.length <= maximum;
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return Number.isInteger(value) && Number(value) >= 0;
+}
+
+function isHeldOutEvaluationResult(value: unknown): value is HeldOutEvaluationResult {
+  if (!isRecord(value)) return false;
+  return (
+    isBoundedString(value.source_title, 160) &&
+    isBoundedString(value.source_url, 500) &&
+    value.source_url.startsWith("https://") &&
+    isBoundedString(value.source_credit, 160) &&
+    isBoundedString(value.licence, 200) &&
+    isBoundedString(value.reference_state, 120) &&
+    isBoundedString(value.model, 120) &&
+    isBoundedString(value.provider, 120) &&
+    isNonNegativeInteger(value.processed_frames) &&
+    isBoundedString(value.matcher, 160) &&
+    isFiniteNumber(value.tolerance_s) &&
+    value.tolerance_s >= 0 &&
+    isNonNegativeInteger(value.reference_event_count) &&
+    isNonNegativeInteger(value.matched_predictions) &&
+    isNonNegativeInteger(value.missed_events) &&
+    isNonNegativeInteger(value.false_alarms) &&
+    isNonNegativeInteger(value.sam_latency_ms) &&
+    isNonNegativeInteger(value.total_latency_ms) &&
+    typeof value.remote_file_deletion_confirmed === "boolean"
+  );
 }
 
 function assertGeometry(value: unknown, index: number): asserts value is GeometryRecord {
@@ -235,6 +285,11 @@ export function validateBundle(value: unknown): WildScoreBundle {
     !isRecord(evaluation) ||
     typeof evaluation.status !== "string" ||
     !Number.isInteger(evaluation.held_out_clip_count) ||
+    !(
+      evaluation.held_out_result === undefined ||
+      evaluation.held_out_result === null ||
+      isHeldOutEvaluationResult(evaluation.held_out_result)
+    ) ||
     !isStringArray(evaluation.limitations)
   ) {
     throw new Error("WildScore bundle has invalid top-level fields");

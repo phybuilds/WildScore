@@ -150,6 +150,8 @@ export default function SavedAnalysisViewer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const workspaceRef = useRef<HTMLElement>(null);
   const recoveryMenuRef = useRef<HTMLDetailsElement>(null);
+  const timelineListRef = useRef<HTMLDivElement>(null);
+  const timelineRowRefs = useRef(new Map<string, HTMLDivElement>());
   const labelInputRef = useRef<HTMLInputElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
@@ -556,6 +558,24 @@ export default function SavedAnalysisViewer() {
     [],
   );
 
+  useEffect(() => {
+    if (!selectedSegmentId) return;
+    const list = timelineListRef.current;
+    const row = timelineRowRefs.current.get(selectedSegmentId);
+    if (!list || !row) return;
+    const listRect = list.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const nextScrollTop =
+      list.scrollTop +
+      rowRect.top -
+      listRect.top -
+      (list.clientHeight - rowRect.height) / 2;
+    list.scrollTo({
+      top: Math.max(0, nextScrollTop),
+      behavior: "smooth",
+    });
+  }, [selectedSegmentId]);
+
   function focusWorkbench() {
     window.requestAnimationFrame(() => {
       workspaceRef.current?.scrollIntoView({
@@ -959,7 +979,7 @@ export default function SavedAnalysisViewer() {
         <span>{formatTime(readyBundle.clip.processed_duration_s / 2)}</span>
         <span>{formatTime(readyBundle.clip.processed_duration_s)}</span>
       </div>
-      <div className="timeline-list">
+      <div className="timeline-list" ref={timelineListRef}>
         {readyBundle.segments.map((segment) => {
           const label = currentReviewedLabel(
             readyBundle,
@@ -978,6 +998,10 @@ export default function SavedAnalysisViewer() {
                 isDimmed ? "is-dimmed" : ""
               }`}
               key={segment.segment_id}
+              ref={(node) => {
+                if (node) timelineRowRefs.current.set(segment.segment_id, node);
+                else timelineRowRefs.current.delete(segment.segment_id);
+              }}
             >
               <div className="timeline-label">
                 <strong>{humanizeIdentifier(label.label)}</strong>
@@ -1844,7 +1868,11 @@ export default function SavedAnalysisViewer() {
       <section className="evidence-strip evidence-panel" aria-labelledby="evidence-heading">
         <div>
           <p className="eyebrow">Evidence boundary</p>
-          <h2 id="evidence-heading">Single-clip development review</h2>
+          <h2 id="evidence-heading">
+            {evidence.heldOutResult
+              ? "Development review + held-out check"
+              : "Single-clip development review"}
+          </h2>
           <p className="evidence-provenance">
             {evidence.provider ?? "Saved model run"}
             {runDetail.length > 0 ? ` · ${runDetail.join(" · ")}` : ""}
@@ -1869,14 +1897,35 @@ export default function SavedAnalysisViewer() {
               </dd>
             </div>
             <div>
-              <dt>Held-out clips</dt>
-              <dd>{evidence.heldOutClipCount}</dd>
+              <dt>Held-out event check</dt>
+              <dd>
+                {evidence.heldOutResult
+                  ? `${evidence.heldOutResult.matched_predictions} matched · ${evidence.heldOutResult.missed_events} missed · ${evidence.heldOutResult.false_alarms} false alarms`
+                  : "Not available"}
+              </dd>
             </div>
           </dl>
           <p className="evidence-caveat">
-            These are human decisions on this development clip’s proposals—not precision,
-            recall or an accuracy score. Proposal review cannot count animals the model
-            never proposed.
+            {evidence.heldOutResult ? (
+              <>
+                One short, static, uncrowded wolf clip with {evidence.heldOutResult.reference_event_count} eligible boundary events;
+                not a general accuracy estimate. Source: {" "}
+                <a
+                  href={evidence.heldOutResult.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {evidence.heldOutResult.source_title}
+                </a>{" "}
+                · {evidence.heldOutResult.source_credit} · {evidence.heldOutResult.licence}.
+              </>
+            ) : (
+              <>
+                These are human decisions on this development clip’s proposals—not
+                precision, recall or an accuracy score. Proposal review cannot count
+                animals the model never proposed.
+              </>
+            )}
           </p>
         </div>
       </section>
