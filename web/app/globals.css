@@ -538,6 +538,50 @@ h2 {
   background: #1e241f;
 }
 
+.saved-replay-status {
+  position: absolute;
+  z-index: 5;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 251, 237, 0.42);
+  border-radius: 3px;
+  background: rgba(23, 59, 108, 0.88);
+  color: #fffbed;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.saved-replay-status span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f3d85f;
+  box-shadow: 0 0 0 3px rgba(243, 216, 95, 0.18);
+}
+
+.saved-replay-scan {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+  border-right: 2px solid #f3d85f;
+  background: linear-gradient(90deg, transparent 94%, rgba(243, 216, 95, 0.09));
+  box-shadow: 8px 0 14px -8px rgba(243, 216, 95, 0.9);
+  transform: scaleX(var(--saved-replay-ratio));
+  transform-origin: left center;
+  will-change: transform;
+}
+
 .video-transport {
   display: flex;
   flex-wrap: wrap;
@@ -721,6 +765,32 @@ h2 {
   border-color: var(--graphite);
   background: transparent;
   color: var(--graphite);
+}
+
+.saved-replay-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.saved-replay-inline-status {
+  color: var(--blue-dark);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.workspace.is-saved-replay-idle .review-sheet,
+.workspace.is-saved-replay-running .review-sheet {
+  pointer-events: none;
+  opacity: 0.58;
+}
+
+.workspace.is-saved-replay-idle .timeline-track,
+.workspace.is-saved-replay-running .timeline-track {
+  pointer-events: none;
 }
 
 .segment-focus-bar {
@@ -1195,6 +1265,24 @@ footer {
   position: relative;
   height: 24px;
   border-bottom: 1px solid rgba(46, 45, 41, 0.24);
+}
+
+.workspace.is-saved-replay-running .timeline-track::after {
+  position: absolute;
+  z-index: 2;
+  top: -1px;
+  right: -1px;
+  bottom: -1px;
+  left: var(--saved-replay-progress);
+  background: rgba(250, 247, 234, 0.96);
+  content: "";
+  pointer-events: none;
+}
+
+.workspace.is-saved-replay-idle .presence-bar,
+.workspace.is-saved-replay-idle .event-marker,
+.event-marker.is-replay-pending {
+  opacity: 0;
 }
 
 .presence-bar {
@@ -1766,5 +1854,9 @@ footer {
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .saved-replay-scan {
+    display: none;
   }
 }

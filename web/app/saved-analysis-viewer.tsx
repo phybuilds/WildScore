@@ -6,6 +6,7 @@ import {
   useReducer,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
@@ -53,6 +54,11 @@ import {
   reviewedRecoveryCount,
   type RecoveryReviewState,
 } from "../../src/review/recovery-state";
+import {
+  isReplayEvidenceVisible,
+  replayProgress,
+  type SavedAnalysisReplayPhase,
+} from "../../src/replay/saved-analysis-replay";
 
 type LoadState =
   | { status: "loading" }
@@ -131,6 +137,8 @@ function recoveryLabelStorageKey(bundle: RecoveryCandidateBundle): string {
 export default function SavedAnalysisViewer() {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [analysisVisible, setAnalysisVisible] = useState(false);
+  const [savedReplayPhase, setSavedReplayPhase] =
+    useState<SavedAnalysisReplayPhase>("idle");
   const [currentTime, setCurrentTime] = useState(0);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
@@ -548,6 +556,97 @@ export default function SavedAnalysisViewer() {
       setAudioUnavailable(true);
       setSoundEnabled(false);
     }
+  }
+
+  async function enableSoundForReplay() {
+    if (soundEnabled) {
+      await audioContextRef.current?.resume();
+      return;
+    }
+    try {
+      const context = audioContextRef.current ?? new AudioContext();
+      audioContextRef.current = context;
+      if (!masterGainRef.current) {
+        const masterGain = context.createGain();
+        masterGain.gain.setValueAtTime(scoreVolume, context.currentTime);
+        masterGain.connect(context.destination);
+        masterGainRef.current = masterGain;
+      }
+      await context.resume();
+      setAudioUnavailable(false);
+      setSoundEnabled(true);
+    } catch {
+      setAudioUnavailable(true);
+      setSoundEnabled(false);
+    }
+  }
+
+  function playCompletionChime() {
+    const context = audioContextRef.current;
+    const masterGain = masterGainRef.current;
+    if (!soundEnabled || !context || !masterGain || context.state !== "running") return;
+    [0, 0.11].forEach((offset, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const start = context.currentTime + 0.03 + offset;
+      const end = start + 0.16;
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(index === 0 ? 523.25 : 659.25, start);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.055, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      oscillator.connect(gain);
+      gain.connect(masterGain);
+      oscillator.start(start);
+      oscillator.stop(end + 0.01);
+    });
+  }
+
+  function completeSavedReplay(withChime: boolean) {
+    setSavedReplayPhase("complete");
+    setReplayEnd(null);
+    const firstEvent = bundle?.events[0];
+    setSelectedEventId(firstEvent?.event_id ?? null);
+    setSelectedSegmentId(firstEvent?.segment_id ?? bundle?.segments[0]?.segment_id ?? null);
+    setShowAllSegments(false);
+    if (firstEvent) audioScopeRef.current = { kind: "segment", segmentId: firstEvent.segment_id };
+    if (withChime) playCompletionChime();
+    setAnnouncement("Saved analysis replay complete. Review controls are ready.");
+  }
+
+  async function startSavedReplay() {
+    const video = videoRef.current;
+    if (!video || !bundle) return;
+    video.pause();
+    cancelAudioSchedule();
+    resetSuppressedCues();
+    setSelectedRecoveryId(null);
+    setSelectedEventId(null);
+    setSelectedSegmentId(null);
+    setShowAllSegments(true);
+    setMissingAnimalMode(false);
+    setAnalysisVisible(true);
+    setReplayEnd(null);
+    setSavedReplayPhase("running");
+    audioScopeRef.current = { kind: "all" };
+    video.playbackRate = 1;
+    setPlaybackRate(1);
+    video.currentTime = 0;
+    setCurrentTime(0);
+    setAnnouncement("Replaying saved analysis. No model is running in the browser.");
+    await enableSoundForReplay();
+    window.requestAnimationFrame(() => {
+      void video.play().catch(() => {
+        completeSavedReplay(false);
+        setAnnouncement("Playback could not start. The saved dashboard is ready instead.");
+      });
+    });
+  }
+
+  function skipSavedReplay() {
+    videoRef.current?.pause();
+    cancelAudioSchedule();
+    completeSavedReplay(false);
   }
 
   function changeScoreVolume(value: number) {
@@ -1098,9 +1197,22 @@ export default function SavedAnalysisViewer() {
       ? null
       : `${(evidence.samRuntimeMs / 1000).toFixed(1)} s`,
   ].filter((value): value is string => Boolean(value));
+  const savedReplayProgress = replayProgress(
+    currentTime,
+    readyBundle.clip.processed_duration_s,
+    savedReplayPhase,
+  );
+  const savedReplayStyle = {
+    "--saved-replay-progress": `${savedReplayProgress * 100}%`,
+    "--saved-replay-ratio": savedReplayProgress,
+  } as CSSProperties;
 
   const timelinePanel = (
-    <section className="timeline-section" aria-labelledby="timeline-heading">
+    <section
+      className="timeline-section"
+      aria-labelledby="timeline-heading"
+      style={savedReplayStyle}
+    >
       <div className="section-heading compact">
         <div>
           <p className="eyebrow">Temporal evidence</p>
@@ -1156,7 +1268,13 @@ export default function SavedAnalysisViewer() {
                     className={`event-marker ${event.event_kind} ${
                       activeReviewState.event_reviews[event.event_id]?.decision ??
                       event.decision
-                    } ${event.event_id === selectedEventId ? "is-selected" : ""}`}
+                    } ${event.event_id === selectedEventId ? "is-selected" : ""} ${
+                      isReplayEvidenceVisible(
+                        event.start_s,
+                        currentTime,
+                        savedReplayPhase,
+                      ) ? "is-replay-revealed" : "is-replay-pending"
+                    }`}
                     key={event.event_id}
                     type="button"
                     style={{ left: `${(event.start_s / duration) * 100}%` }}
@@ -1246,9 +1364,10 @@ export default function SavedAnalysisViewer() {
         {announcement}
       </p>
       <section
-        className={`workspace ${mediaExpanded ? "is-media-expanded" : ""}`}
+        className={`workspace ${mediaExpanded ? "is-media-expanded" : ""} is-saved-replay-${savedReplayPhase}`}
         aria-labelledby="workspace-heading"
         ref={workspaceRef}
+        style={savedReplayStyle}
       >
         <div className="media-column">
           <div className="section-heading">
@@ -1268,6 +1387,14 @@ export default function SavedAnalysisViewer() {
                 aspectRatio: `${readyBundle.clip.width} / ${readyBundle.clip.height}`,
               }}
             >
+              {savedReplayPhase === "running" && (
+                <>
+                  <div className="saved-replay-status" role="status">
+                    <span aria-hidden="true" /> Replaying saved analysis
+                  </div>
+                  <div className="saved-replay-scan" aria-hidden="true" />
+                </>
+              )}
               <video
                 ref={videoRef}
                 controls
@@ -1321,6 +1448,7 @@ export default function SavedAnalysisViewer() {
                   cancelAudioSchedule();
                   stopVideoFrameSync(videoRef.current);
                   setReplayEnd(null);
+                  if (savedReplayPhase === "running") completeSavedReplay(true);
                 }}
               >
                 Your browser does not support HTML video.
@@ -1494,14 +1622,34 @@ export default function SavedAnalysisViewer() {
                 {formatTime(readyBundle.clip.processed_duration_s)} analysed at{" "}
                 {readyBundle.clip.processed_fps} frames per second
               </span>
-              <button
-                className={analysisVisible ? "secondary-action" : "primary-action"}
-                type="button"
-                aria-pressed={analysisVisible}
-                onClick={() => setAnalysisVisible((visible) => !visible)}
-              >
-                {analysisVisible ? "Hide saved analysis" : "View saved analysis"}
-              </button>
+              <div className="saved-replay-actions">
+                {savedReplayPhase === "running" ? (
+                  <>
+                    <span className="saved-replay-inline-status">
+                      Replaying saved analysis
+                    </span>
+                    <button type="button" onClick={skipSavedReplay}>Skip replay</button>
+                  </>
+                ) : (
+                  <button
+                    className="primary-action"
+                    type="button"
+                    onClick={() => void startSavedReplay()}
+                  >
+                    {savedReplayPhase === "idle" ? "Analyse" : "Replay analysis"}
+                  </button>
+                )}
+                {savedReplayPhase === "complete" && (
+                  <button
+                    className="secondary-action"
+                    type="button"
+                    aria-pressed={analysisVisible}
+                    onClick={() => setAnalysisVisible((visible) => !visible)}
+                  >
+                    {analysisVisible ? "Hide overlays" : "Show overlays"}
+                  </button>
+                )}
+              </div>
             </div>
             <div className="segment-focus-bar">
               <label htmlFor="segment-focus">Follow segment</label>
