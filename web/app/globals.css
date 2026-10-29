@@ -614,6 +614,28 @@ h2 {
   font-size: 0.75rem;
 }
 
+.missing-animal-queue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(46, 45, 41, 0.2);
+  color: var(--blue-dark);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.72rem;
+}
+
+.missing-animal-queue strong {
+  margin-right: auto;
+}
+
+.missing-animal-queue button {
+  min-height: 34px;
+  padding: 5px 9px;
+  font-size: 0.7rem;
+}
+
 .missing-animal-tool p,
 .missing-animal-tool label {
   margin: 0;

@@ -37,8 +37,14 @@ import { buildDevelopmentEvidenceSummary } from "../../src/evaluation/evidence-s
 import {
   containedVideoDragToMediaBox,
   createMissingAnimalAnnotation,
+  type MissingAnimalAnnotation,
   type InclusiveMediaBox,
 } from "../../src/recovery/missing-animal-annotation";
+import {
+  appendMissingAnimalAnnotation,
+  buildMissingAnimalReportBatch,
+  restoreMissingAnimalAnnotations,
+} from "../../src/recovery/missing-animal-report-queue";
 import {
   bundleKey,
   createInitialReviewState,
@@ -134,6 +140,10 @@ function recoveryLabelStorageKey(bundle: RecoveryCandidateBundle): string {
   return `wildscore:recovery-labels:${recoveryBundleKey(bundle)}`;
 }
 
+function missingAnimalStorageKey(bundle: WildScoreBundle): string {
+  return `wildscore:missing-animals:${bundleKey(bundle)}`;
+}
+
 export default function SavedAnalysisViewer() {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [analysisVisible, setAnalysisVisible] = useState(false);
@@ -165,6 +175,7 @@ export default function SavedAnalysisViewer() {
   const [missingAnimalBox, setMissingAnimalBox] = useState<InclusiveMediaBox | null>(null);
   const [missingAnimalLabel, setMissingAnimalLabel] = useState("");
   const [missingAnimalError, setMissingAnimalError] = useState("");
+  const [missingAnimalReports, setMissingAnimalReports] = useState<MissingAnimalAnnotation[]>([]);
   const [reviewState, dispatchReview] = useReducer(
     reviewReducer,
     EMPTY_REVIEW_STATE,
@@ -223,6 +234,14 @@ export default function SavedAnalysisViewer() {
           dispatchRecoveryReview({ type: "restore_labels", bundle: recovery, labels: null });
         }
         setLoadState({ status: "ready", bundle, recovery });
+        try {
+          const stored = window.localStorage.getItem(missingAnimalStorageKey(bundle));
+          setMissingAnimalReports(
+            restoreMissingAnimalAnnotations(stored ? JSON.parse(stored) : null, bundle.clip.clip_id),
+          );
+        } catch {
+          setMissingAnimalReports([]);
+        }
         setSelectedEventId(bundle.events[0]?.event_id ?? null);
         setSelectedSegmentId(
           bundle.events[0]?.segment_id ?? bundle.segments[0]?.segment_id ?? null,
@@ -386,6 +405,18 @@ export default function SavedAnalysisViewer() {
       // Review remains usable in memory when browser storage is unavailable.
     }
   }, [recovery, recoveryReviewState]);
+
+  useEffect(() => {
+    if (!bundle) return;
+    try {
+      window.localStorage.setItem(
+        missingAnimalStorageKey(bundle),
+        JSON.stringify(missingAnimalReports),
+      );
+    } catch {
+      // The queue remains usable in memory when browser storage is unavailable.
+    }
+  }, [bundle, missingAnimalReports]);
 
   useEffect(() => {
     if (!recovery || recoveryReviewState.bundle_key !== recoveryBundleKey(recovery)) return;
@@ -1085,7 +1116,7 @@ export default function SavedAnalysisViewer() {
     }
   }
 
-  function downloadMissingAnimalAnnotation() {
+  function queueMissingAnimalAnnotation() {
     if (!bundle || !missingAnimalBox) {
       setMissingAnimalError("Draw a box around the visible animal first.");
       return;
@@ -1100,20 +1131,34 @@ export default function SavedAnalysisViewer() {
       broadLabel: missingAnimalLabel,
       box: missingAnimalBox,
     });
-    const blob = new Blob([`${JSON.stringify(annotation, null, 2)}\n`], {
+    setMissingAnimalReports((current) =>
+      appendMissingAnimalAnnotation(current, annotation),
+    );
+    setMissingAnimalMode(false);
+    setMissingAnimalBox(null);
+    setMissingAnimalLabel("");
+    setAnnouncement(`Missing-animal annotation added to the local queue for frame ${currentFrame}.`);
+  }
+
+  function downloadMissingAnimalBatch() {
+    if (!bundle || missingAnimalReports.length === 0) return;
+    const batch = buildMissingAnimalReportBatch(
+      bundle.clip.clip_id,
+      missingAnimalReports,
+    );
+    const blob = new Blob([`${JSON.stringify(batch, null, 2)}\n`], {
       type: "application/json;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${bundle.clip.clip_id}-missing-animal-frame-${currentFrame}.json`;
+    link.download = `${bundle.clip.clip_id}-missing-animals.json`;
     link.hidden = true;
     document.body.append(link);
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
-    setMissingAnimalMode(false);
-    setAnnouncement(`Missing-animal annotation downloaded for frame ${currentFrame}.`);
+    setAnnouncement(`${missingAnimalReports.length} missing-animal reports downloaded as one batch.`);
   }
 
   function resetReviews() {
@@ -1587,6 +1632,25 @@ export default function SavedAnalysisViewer() {
                 </button>
               )}
             </div>
+            {missingAnimalReports.length > 0 && !missingAnimalMode && (
+              <div className="missing-animal-queue" aria-label="Missing-animal report queue">
+                <strong>
+                  {missingAnimalReports.length} missed animal{missingAnimalReports.length === 1 ? "" : "s"} queued locally
+                </strong>
+                <button type="button" onClick={downloadMissingAnimalBatch}>
+                  Download batch JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMissingAnimalReports((current) => current.slice(0, -1));
+                    setAnnouncement("Last missing-animal report removed from the local queue.");
+                  }}
+                >
+                  Undo last
+                </button>
+              </div>
+            )}
             {missingAnimalMode && (
               <div className="missing-animal-tool">
                 <p>
@@ -1606,13 +1670,13 @@ export default function SavedAnalysisViewer() {
                   className="primary-action"
                   type="button"
                   disabled={!missingAnimalBox}
-                  onClick={downloadMissingAnimalAnnotation}
+                  onClick={queueMissingAnimalAnnotation}
                 >
-                  Save annotation
+                  Add to report queue
                 </button>
                 <button type="button" onClick={cancelMissingAnimalReport}>Cancel</button>
                 <small>
-                  Saves JSON only. Footage is not uploaded and no model runs in the browser.
+                  Stored in this browser until you download one batch. Footage is not uploaded.
                 </small>
                 {missingAnimalError && <strong role="alert">{missingAnimalError}</strong>}
               </div>
