@@ -137,6 +137,10 @@ function recoveryStorageKey(bundle: RecoveryCandidateBundle): string {
   return `wildscore:recovery:${recoveryBundleKey(bundle)}`;
 }
 
+function reviewStorageKey(bundle: WildScoreBundle): string {
+  return `wildscore:reviews:${bundleKey(bundle)}`;
+}
+
 function recoveryLabelStorageKey(bundle: RecoveryCandidateBundle): string {
   return `wildscore:recovery-labels:${recoveryBundleKey(bundle)}`;
 }
@@ -210,7 +214,14 @@ export default function SavedAnalysisViewer() {
       loadRecoveryCandidateBundle(controller.signal),
     ])
       .then(([bundle, recovery]) => {
-        dispatchReview({ type: "load", bundle });
+        let storedReviews: unknown = null;
+        try {
+          const stored = window.localStorage.getItem(reviewStorageKey(bundle));
+          storedReviews = stored ? JSON.parse(stored) : null;
+        } catch {
+          storedReviews = null;
+        }
+        dispatchReview({ type: "restore", bundle, stored: storedReviews });
         setExportedReviewState(createInitialReviewState(bundle));
         let storedRecoveryDecisions: unknown = null;
         try {
@@ -389,6 +400,18 @@ export default function SavedAnalysisViewer() {
     }
     return baseAudioCues;
   }
+
+  useEffect(() => {
+    if (!bundle || reviewState.bundle_key !== bundleKey(bundle)) return;
+    try {
+      window.localStorage.setItem(
+        reviewStorageKey(bundle),
+        JSON.stringify(reviewState),
+      );
+    } catch {
+      // Reviews remain usable in memory when browser storage is unavailable.
+    }
+  }, [bundle, reviewState]);
 
   useEffect(() => {
     if (
@@ -2189,8 +2212,8 @@ export default function SavedAnalysisViewer() {
                 </button>
               </div>
               <p className="small-note">
-                Event and label reviews are separate. Refresh restores the saved
-                51-event review and discards only unsaved event changes.
+                Event and label reviews are separate. Changes are saved in this
+                browser for this analysis bundle until reviews are reset.
               </p>
             </>
           ) : (

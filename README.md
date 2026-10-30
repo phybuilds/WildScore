@@ -83,11 +83,18 @@ npm run check:public
 npm run dev
 ```
 
-The viewer validates the saved bundle before use. Event-review experiments stay
-in memory and reset to the immutable stored bundle on refresh. Recovery reviews
-use bundle-scoped browser-local storage and never leave the device. CSV export
+The viewer validates the saved bundle before use. Event, label and recovery
+reviews use bundle-scoped browser-local storage and never leave the device.
+Resetting reviews restores the immutable stored bundle. CSV export
 retains proposed, accepted, rejected and `can't tell` events and neutralises
 spreadsheet-formula prefixes in editable fields.
+
+## Post-hackathon roadmap
+
+- Consider SpeciesNet as an optional comparison or integration only after the
+  Meta hackathon. It is deliberately excluded from the current pipeline because
+  WildScore's hackathon build calls Meta models exclusively. Any later addition
+  must preserve local-first privacy, provenance and human review boundaries.
 
 ## Current limitations
 

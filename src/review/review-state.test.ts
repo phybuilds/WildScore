@@ -6,6 +6,7 @@ import {
   createInitialReviewState,
   currentReviewedLabel,
   reviewReducer,
+  restoreReviewState,
   reviewedEventCount,
 } from "./review-state.ts";
 
@@ -151,4 +152,34 @@ test("reset restores the stored bundle review", () => {
     label: "olive_baboon",
     source: "human",
   });
+});
+
+test("restores bundle-scoped browser reviews and ignores stale ids", () => {
+  const bundle = fixture();
+  const changed = reviewReducer(createInitialReviewState(bundle), {
+    type: "review_label",
+    segment_id: "segment-1",
+    value: "warthog",
+    reviewer: "local_reviewer",
+    reviewed_at: "2026-10-30T12:00:00.000Z",
+    correction_note: "Confirmed from the clip.",
+  });
+  const restored = restoreReviewState(bundle, {
+    ...changed,
+    label_reviews: {
+      ...changed.label_reviews,
+      "stale-segment": changed.label_reviews["segment-1"],
+    },
+  });
+  assert.equal(restored.label_reviews["segment-1"].new_value, "warthog");
+  assert.equal("stale-segment" in restored.label_reviews, false);
+});
+
+test("rejects browser reviews from a different bundle", () => {
+  const bundle = fixture();
+  const restored = restoreReviewState(bundle, {
+    ...createInitialReviewState(bundle),
+    bundle_key: "different-bundle",
+  });
+  assert.deepEqual(restored, createInitialReviewState(bundle));
 });

@@ -28,6 +28,7 @@ export interface ReviewState {
 
 export type ReviewAction =
   | { type: "load"; bundle: WildScoreBundle }
+  | { type: "restore"; bundle: WildScoreBundle; stored: unknown }
   | {
       type: "decide_event";
       event_id: string;
@@ -136,10 +137,60 @@ export function createInitialReviewState(bundle: WildScoreBundle): ReviewState {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isShortStringOrNull(value: unknown, maxLength: number): boolean {
+  return value === null || (typeof value === "string" && value.length <= maxLength);
+}
+
+export function restoreReviewState(
+  bundle: WildScoreBundle,
+  stored: unknown,
+): ReviewState {
+  const initial = createInitialReviewState(bundle);
+  if (!isRecord(stored) || stored.bundle_key !== initial.bundle_key) return initial;
+
+  const eventReviews = { ...initial.event_reviews };
+  if (isRecord(stored.event_reviews)) {
+    for (const [eventId, value] of Object.entries(stored.event_reviews)) {
+      if (!(eventId in eventReviews) || !isRecord(value)) continue;
+      if (!["proposed", "accepted", "rejected", "uncertain"].includes(String(value.decision))) continue;
+      if (!isShortStringOrNull(value.reviewer, 120)) continue;
+      if (!isShortStringOrNull(value.reviewed_at, 80)) continue;
+      if (typeof value.correction_note !== "string" || value.correction_note.length > 500) continue;
+      eventReviews[eventId] = value as unknown as EventReviewState;
+    }
+  }
+
+  const labelReviews = { ...initial.label_reviews };
+  if (isRecord(stored.label_reviews)) {
+    for (const [segmentId, value] of Object.entries(stored.label_reviews)) {
+      if (!(segmentId in labelReviews) || !isRecord(value)) continue;
+      if (!["proposed", "accepted", "rejected", "uncertain"].includes(String(value.decision))) continue;
+      if (typeof value.original_value !== "string" || value.original_value.length > 240) continue;
+      if (!isShortStringOrNull(value.new_value, 240)) continue;
+      if (!isShortStringOrNull(value.reviewer, 120)) continue;
+      if (!isShortStringOrNull(value.reviewed_at, 80)) continue;
+      if (typeof value.correction_note !== "string" || value.correction_note.length > 500) continue;
+      labelReviews[segmentId] = {
+        ...(value as unknown as LabelReviewState),
+        original_value: initial.label_reviews[segmentId].original_value,
+      };
+    }
+  }
+
+  return { ...initial, event_reviews: eventReviews, label_reviews: labelReviews };
+}
+
 export function reviewReducer(
   state: ReviewState,
   action: ReviewAction,
 ): ReviewState {
+  if (action.type === "restore") {
+    return restoreReviewState(action.bundle, action.stored);
+  }
   if (action.type === "load" || action.type === "reset") {
     return createInitialReviewState(action.bundle);
   }
