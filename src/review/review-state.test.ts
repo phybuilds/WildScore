@@ -3,6 +3,8 @@ import test from "node:test";
 
 import type { WildScoreBundle } from "../data/bundle-schema.ts";
 import {
+  bundleIdentityKey,
+  bundleKey,
   createInitialReviewState,
   currentReviewedLabel,
   reviewReducer,
@@ -182,4 +184,12 @@ test("rejects browser reviews from a different bundle", () => {
     bundle_key: "different-bundle",
   });
   assert.deepEqual(restored, createInitialReviewState(bundle));
+});
+
+test("saved-review changes rotate review storage without rotating clip identity", () => {
+  const original = fixture();
+  const revised = structuredClone(original);
+  revised.reviews[0].new_value = "baboon";
+  assert.equal(bundleIdentityKey(original), bundleIdentityKey(revised));
+  assert.notEqual(bundleKey(original), bundleKey(revised));
 });

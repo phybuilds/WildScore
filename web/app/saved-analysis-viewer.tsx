@@ -47,6 +47,7 @@ import {
   restoreMissingAnimalAnnotations,
 } from "../../src/recovery/missing-animal-report-queue";
 import {
+  bundleIdentityKey,
   bundleKey,
   createInitialReviewState,
   currentReviewedLabel,
@@ -146,7 +147,7 @@ function recoveryLabelStorageKey(bundle: RecoveryCandidateBundle): string {
 }
 
 function missingAnimalStorageKey(bundle: WildScoreBundle): string {
-  return `wildscore:missing-animals:${bundleKey(bundle)}`;
+  return `wildscore:missing-animals:${bundleIdentityKey(bundle)}`;
 }
 
 export default function SavedAnalysisViewer() {

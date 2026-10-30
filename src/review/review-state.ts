@@ -61,13 +61,40 @@ export type ReviewAction =
     }
   | { type: "reset"; bundle: WildScoreBundle };
 
-export function bundleKey(bundle: WildScoreBundle): string {
+export function bundleIdentityKey(bundle: WildScoreBundle): string {
   return JSON.stringify([
     bundle.schema_version,
     bundle.clip.clip_id,
     bundle.run.run_id ?? null,
     bundle.run.config_hash ?? null,
   ]);
+}
+
+function reviewBaselineHash(bundle: WildScoreBundle): string {
+  const value = JSON.stringify([
+    bundle.label_proposals.map((proposal) => [
+      proposal.segment_id,
+      proposal.label_id,
+    ]),
+    bundle.reviews.map((review) => [
+      review.review_kind,
+      review.segment_id ?? null,
+      review.event_id ?? null,
+      review.decision,
+      review.original_value,
+      review.new_value,
+    ]),
+  ]);
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+export function bundleKey(bundle: WildScoreBundle): string {
+  return JSON.stringify([bundleIdentityKey(bundle), reviewBaselineHash(bundle)]);
 }
 
 function storedLabelReviews(
