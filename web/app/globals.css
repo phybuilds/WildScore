@@ -631,7 +631,11 @@ h2 {
 }
 
 .video-transport > button:last-child {
-  margin-left: auto;
+  margin-left: 0;
+}
+
+.video-stage video::-webkit-media-controls-fullscreen-button {
+  display: none;
 }
 
 .missing-animal-tool {

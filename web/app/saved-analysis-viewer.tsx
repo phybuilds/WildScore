@@ -1353,8 +1353,8 @@ export default function SavedAnalysisViewer() {
     <details className="recovery-menu" ref={recoveryMenuRef}>
       <summary>
         <span>
-          <strong>Targeted recovery audit</strong>
-          <small>Review supplemental SAM tracks</small>
+          <strong>Recovery candidates</strong>
+          <small>Precomputed supplemental SAM tracks</small>
         </span>
         <span className="handwritten">
           {reviewedRecoveryCount(activeRecoveryReviewState)}/
@@ -1363,8 +1363,9 @@ export default function SavedAnalysisViewer() {
       </summary>
       <div className="recovery-menu-panel">
         <p>
-          These prompt-specific tracks remain separate from the saved event log.
-          Keeping one records useful evidence; it does not merge animal identities.
+          These candidates came from separate targeted SAM runs after the generic
+          pass missed animals. They remain separate from the saved event log until
+          a researcher reviews them; keeping one does not merge animal identities.
         </p>
         <div className="recovery-grid">
           {loadState.recovery.candidates.map((candidate) => {
@@ -1623,8 +1624,14 @@ export default function SavedAnalysisViewer() {
               >
                 {mediaExpanded ? "Balanced split" : "Larger video"}
               </button>
-              <button type="button" onClick={() => void toggleWorkspaceFullscreen()}>
-                {workspaceFullscreen ? "Exit workspace fullscreen" : "Expand workspace"}
+              <button
+                type="button"
+                aria-label={workspaceFullscreen
+                  ? "Exit video and evidence fullscreen"
+                  : "Open video and evidence in fullscreen"}
+                onClick={() => void toggleWorkspaceFullscreen()}
+              >
+                {workspaceFullscreen ? "Exit full screen" : "Full screen"}
               </button>
               {!missingAnimalMode && (
                 <button type="button" onClick={beginMissingAnimalReport}>
@@ -1676,7 +1683,9 @@ export default function SavedAnalysisViewer() {
                 </button>
                 <button type="button" onClick={cancelMissingAnimalReport}>Cancel</button>
                 <small>
-                  Stored in this browser until you download one batch. Footage is not uploaded.
+                  Stored in this browser until you download one batch for a local
+                  targeted recovery run. Footage is not uploaded and the browser
+                  makes no model call.
                 </small>
                 {missingAnimalError && <strong role="alert">{missingAnimalError}</strong>}
               </div>
