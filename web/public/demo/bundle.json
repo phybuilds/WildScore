@@ -28761,6 +28761,118 @@
       "uncertainty_reason": null,
       "model": "muse-spark-1.3",
       "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-0-1",
+      "label_id": "baboon",
+      "visible_evidence": "stocky quadrupedal primate with elongated muzzle and curved tail consistent across panels",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-1-1",
+      "label_id": "unknown",
+      "visible_evidence": "small dark upright-sitting animal at water edge consistent across panels",
+      "uncertainty_reason": "low resolution dark silhouette lacks diagnostic features for species",
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-11-1",
+      "label_id": "unknown",
+      "visible_evidence": "slender tan antelope with pale underparts and thin legs consistent across panels",
+      "uncertainty_reason": "low resolution lacks species-specific horns and markings",
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-12-1",
+      "label_id": "impala",
+      "visible_evidence": "slender medium tan antelope with pale underparts, thin legs and small head in side profile across all panels",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-14-1",
+      "label_id": "impala",
+      "visible_evidence": "slender tan antelope with long thin legs and long neck consistent across panels",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-15-1",
+      "label_id": "hippopotamus",
+      "visible_evidence": "large dark bulky hairless body mostly submerged with back and head top visible across panels",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-2-1",
+      "label_id": "baboon",
+      "visible_evidence": "quadrupedal primate with robust body, long curved tail and baboon-like head profile consistent across panels",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-2-2",
+      "label_id": "baboon",
+      "visible_evidence": "stocky dark-furred quadrupedal primate with elongated muzzle and baboon-like body shape consistent across panels",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-3-1",
+      "label_id": "baboon",
+      "visible_evidence": "quadrupedal primate with robust body, dog-like muzzle and long curved tail consistent across panels",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-4-1",
+      "label_id": "warthog",
+      "visible_evidence": "stocky gray pig-like body with large head and short legs consistent across panels",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-5-1",
+      "label_id": "baboon",
+      "visible_evidence": "quadrupedal robust primate with long curved tail and baboon-like body proportions consistent across all three panels",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-7-1",
+      "label_id": "baboon",
+      "visible_evidence": "quadrupedal primate with long tail, elongated dog-like muzzle and shaggy body seen in side profile",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-8-1",
+      "label_id": "jackal",
+      "visible_evidence": "small-medium quadruped with canine body, four legs and long up-curved tail seen in all three panels",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
+    },
+    {
+      "segment_id": "seg-9-1",
+      "label_id": "baboon",
+      "visible_evidence": "quadrupedal primate body with long curved tail and baboon-like head profile consistent across panels",
+      "uncertainty_reason": null,
+      "model": "muse-spark-1.3",
+      "source_run_id": "label-run-1"
     }
   ],
   "events": [
@@ -29511,16 +29623,6 @@
   ],
   "reviews": [
     {
-      "review_kind": "segment_label",
-      "segment_id": "seg-6-1",
-      "decision": "accepted",
-      "original_value": "baboon",
-      "new_value": "olive_baboon",
-      "reviewer": "local_reviewer",
-      "reviewed_at": null,
-      "correction_note": "Accepted broad baboon proposal and refined species."
-    },
-    {
       "review_kind": "event",
       "event_id": "seg-0-1:disappearance",
       "decision": "accepted",
@@ -30029,6 +30131,316 @@
       "reviewer": "local_reviewer",
       "reviewed_at": null,
       "correction_note": "Recovered from the completed local review; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-0-1",
+      "decision": "accepted",
+      "original_value": "baboon",
+      "new_value": null,
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Confirmed during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-1-1",
+      "decision": "accepted",
+      "original_value": "unknown",
+      "new_value": "baboon",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-2-1",
+      "decision": "accepted",
+      "original_value": "baboon",
+      "new_value": null,
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Confirmed during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-2-2",
+      "decision": "accepted",
+      "original_value": "baboon",
+      "new_value": null,
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Confirmed during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-3-1",
+      "decision": "accepted",
+      "original_value": "baboon",
+      "new_value": null,
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Confirmed during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-4-1",
+      "decision": "accepted",
+      "original_value": "warthog",
+      "new_value": null,
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Confirmed during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-5-1",
+      "decision": "accepted",
+      "original_value": "baboon",
+      "new_value": null,
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Confirmed during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-6-1",
+      "decision": "accepted",
+      "original_value": "baboon",
+      "new_value": "olive_baboon",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-7-1",
+      "decision": "accepted",
+      "original_value": "baboon",
+      "new_value": null,
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Confirmed during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-7-2",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-7-3",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-7-4",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-7-5",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-7-6",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-7-7",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-7-8",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-8-1",
+      "decision": "accepted",
+      "original_value": "jackal",
+      "new_value": "baboon",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-9-1",
+      "decision": "accepted",
+      "original_value": "baboon",
+      "new_value": null,
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Confirmed during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-9-2",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "warthog",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-10-1",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "unidentified_bird",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-10-2",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-10-3",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-10-4",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-10-5",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-10-6",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-10-7",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-11-1",
+      "decision": "accepted",
+      "original_value": "unknown",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-12-1",
+      "decision": "accepted",
+      "original_value": "impala",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-13-1",
+      "decision": "accepted",
+      "original_value": "unlabelled animal",
+      "new_value": "unidentified_bird",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-14-1",
+      "decision": "accepted",
+      "original_value": "impala",
+      "new_value": "antelope",
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Corrected during completed human track audit; original timestamp unavailable."
+    },
+    {
+      "review_kind": "segment_label",
+      "segment_id": "seg-15-1",
+      "decision": "accepted",
+      "original_value": "hippopotamus",
+      "new_value": null,
+      "reviewer": "local_reviewer",
+      "reviewed_at": null,
+      "correction_note": "Confirmed during completed human track audit; original timestamp unavailable."
     }
   ],
   "evaluation": {

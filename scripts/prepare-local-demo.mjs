@@ -8,7 +8,9 @@ import { validateBundle } from "../src/data/bundle-schema.ts";
 import { validateRecoveryCandidateBundle } from "../src/data/recovery-schema.ts";
 import { publicDemoBundle, publicRecoveryBundle } from "../src/data/public-demo.ts";
 
-const PRIVATE_BUNDLE = path.resolve("private/bundles/clip-01/bundle-reviewed.json");
+const PRIVATE_BUNDLE = path.resolve(
+  "private/bundles/clip-01/bundle-reviewed-blind-labelled.json",
+);
 const PRIVATE_RECOVERY = path.resolve(
   "private/bundles/clip-01/recovery-candidates-label-reviewed.json",
 );
