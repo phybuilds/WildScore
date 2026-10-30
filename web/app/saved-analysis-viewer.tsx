@@ -367,6 +367,24 @@ export default function SavedAnalysisViewer() {
   const selectedProposal = bundle?.label_proposals.find(
     (proposal) => proposal.segment_id === selectedSegment?.segment_id,
   );
+  const missingAnimalLabelSuggestions = useMemo(() => {
+    const labels = new Set<string>(["unknown"]);
+    if (bundle) {
+      for (const proposal of bundle.label_proposals) labels.add(proposal.label_id);
+      for (const review of bundle.reviews) {
+        if (review.review_kind !== "segment_label") continue;
+        labels.add(review.new_value ?? review.original_value);
+      }
+    }
+    if (recovery) {
+      for (const proposal of recovery.label_proposals) labels.add(proposal.label_id);
+      for (const candidate of recovery.candidates) labels.add(candidate.suggested_label);
+    }
+    return [...labels]
+      .filter((label) => label && label !== "unlabelled animal")
+      .map(humanizeIdentifier)
+      .sort((left, right) => left.localeCompare(right));
+  }, [bundle, recovery]);
   const selectedEventReview = selectedEvent
     ? activeReviewState.event_reviews[selectedEvent.event_id]
     : null;
@@ -1709,11 +1727,17 @@ export default function SavedAnalysisViewer() {
                   Broad label <span>(optional)</span>
                   <input
                     type="text"
+                    list="missing-animal-label-suggestions"
                     maxLength={80}
                     value={missingAnimalLabel}
                     placeholder="e.g. antelope"
                     onChange={(event) => setMissingAnimalLabel(event.currentTarget.value)}
                   />
+                  <datalist id="missing-animal-label-suggestions">
+                    {missingAnimalLabelSuggestions.map((label) => (
+                      <option value={label} key={label} />
+                    ))}
+                  </datalist>
                 </label>
                 <button
                   className="primary-action"
