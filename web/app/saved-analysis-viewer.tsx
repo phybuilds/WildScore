@@ -27,6 +27,7 @@ import {
   formatTime,
   frameAtTime,
   geometryAnchorTime,
+  geometryCentroidPath,
   humanizeIdentifier,
   segmentStartTime,
   type VisibleGeometry,
@@ -177,6 +178,7 @@ export default function SavedAnalysisViewer() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [mediaExpanded, setMediaExpanded] = useState(false);
   const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
+  const [showSelectedPath, setShowSelectedPath] = useState(false);
   const [missingAnimalMode, setMissingAnimalMode] = useState(false);
   const [missingAnimalBox, setMissingAnimalBox] = useState<InclusiveMediaBox | null>(null);
   const [missingAnimalLabel, setMissingAnimalLabel] = useState("");
@@ -355,6 +357,9 @@ export default function SavedAnalysisViewer() {
   );
   const selectedSegment = bundle?.segments.find(
     (segment) => segment.segment_id === selectedSegmentId,
+  );
+  const selectedTrackPath = geometryCentroidPath(
+    selectedRecovery?.geometry ?? selectedSegment?.geometry ?? [],
   );
   const selectedLabel =
     bundle && selectedSegment
@@ -1311,6 +1316,23 @@ export default function SavedAnalysisViewer() {
     "--saved-replay-progress": `${savedReplayProgress * 100}%`,
     "--saved-replay-ratio": savedReplayProgress,
   } as CSSProperties;
+  const eventReviewCounts = readyBundle.events.reduce(
+    (counts, event) => {
+      const decision = activeReviewState.event_reviews[event.event_id]?.decision ?? event.decision;
+      counts[decision] += 1;
+      return counts;
+    },
+    { proposed: 0, accepted: 0, rejected: 0, uncertain: 0 },
+  );
+  const labelReviewCounts = readyBundle.segments.reduce(
+    (counts, segment) => {
+      const decision = activeReviewState.label_reviews[segment.segment_id]?.decision ?? "proposed";
+      if (decision === "accepted") counts.reviewed += 1;
+      else counts.open += 1;
+      return counts;
+    },
+    { reviewed: 0, open: 0 },
+  );
 
   const timelinePanel = (
     <section
@@ -1332,6 +1354,14 @@ export default function SavedAnalysisViewer() {
         <span>{formatTime(readyBundle.clip.processed_duration_s / 2)}</span>
         <span>{formatTime(readyBundle.clip.processed_duration_s)}</span>
       </div>
+      <div className="review-progress-strip" aria-label="Review progress">
+        <span>
+          <strong>Events</strong> A {eventReviewCounts.accepted} · R {eventReviewCounts.rejected} · ? {eventReviewCounts.uncertain} · open {eventReviewCounts.proposed}
+        </span>
+        <span>
+          <strong>Labels</strong> reviewed {labelReviewCounts.reviewed} · open {labelReviewCounts.open}
+        </span>
+      </div>
       <div className="timeline-list" ref={timelineListRef}>
         {readyBundle.segments.map((segment) => {
           const label = currentReviewedLabel(
@@ -1345,11 +1375,13 @@ export default function SavedAnalysisViewer() {
           const duration = readyBundle.clip.processed_duration_s;
           const isActive = segment.segment_id === selectedSegmentId;
           const isDimmed = !showAllSegments && Boolean(selectedSegmentId) && !isActive;
+          const allEventsReviewed = events.every((event) =>
+            (activeReviewState.event_reviews[event.event_id]?.decision ?? event.decision) !== "proposed");
           return (
             <div
               className={`timeline-row ${isActive ? "is-active" : ""} ${
                 isDimmed ? "is-dimmed" : ""
-              }`}
+              } ${allEventsReviewed ? "is-reviewed" : "has-unreviewed-events"}`}
               key={segment.segment_id}
               ref={(node) => {
                 if (node) timelineRowRefs.current.set(segment.segment_id, node);
@@ -1368,12 +1400,11 @@ export default function SavedAnalysisViewer() {
                     width: `${Math.max(0.6, ((segment.end_s - segment.start_s) / duration) * 100)}%`,
                   }}
                 />
-                {events.map((event) => (
-                  <button
-                    className={`event-marker ${event.event_kind} ${
-                      activeReviewState.event_reviews[event.event_id]?.decision ??
-                      event.decision
-                    } ${event.event_id === selectedEventId ? "is-selected" : ""} ${
+                {events.map((event) => {
+                  const decision = activeReviewState.event_reviews[event.event_id]?.decision ?? event.decision;
+                  return (
+                    <button
+                    className={`event-marker ${event.event_kind} ${decision} ${event.event_id === selectedEventId ? "is-selected" : ""} ${
                       isReplayEvidenceVisible(
                         event.start_s,
                         currentTime,
@@ -1383,11 +1414,12 @@ export default function SavedAnalysisViewer() {
                     key={event.event_id}
                     type="button"
                     style={{ left: `${(event.start_s / duration) * 100}%` }}
-                    aria-label={`${eventTitle(event)} for ${segment.segment_id} at ${formatTime(event.start_s)}`}
+                    aria-label={`${eventTitle(event)} for ${segment.segment_id} at ${formatTime(event.start_s)}; review status ${decision}`}
                     aria-pressed={event.event_id === selectedEventId}
                     onClick={() => selectEvent(event)}
-                  />
-                ))}
+                    />
+                  );
+                })}
                 <span
                   className="timeline-playhead"
                   style={{ left: `${Math.min(100, (currentTime / duration) * 100)}%` }}
@@ -1401,6 +1433,8 @@ export default function SavedAnalysisViewer() {
         <span><i className="legend-presence" /> Saved presence</span>
         <span><i className="legend-appearance" /> Appearance proposal</span>
         <span><i className="legend-disappearance" /> Disappearance proposal</span>
+        <span><i className="legend-open" /> Unreviewed</span>
+        <span><i className="legend-uncertain" /> Can’t tell</span>
       </div>
       <p className="timeline-note">
         Rows are observed segments, not persistent animal identities. Focused review dims
@@ -1565,6 +1599,12 @@ export default function SavedAnalysisViewer() {
                 preserveAspectRatio="xMidYMid meet"
                 aria-hidden="true"
               >
+                {showSelectedPath && selectedTrackPath && (
+                  <polyline
+                    className="selected-track-path"
+                    points={selectedTrackPath}
+                  />
+                )}
                 {displayedGeometry.map((geometry) => {
                   const label = selectedRecovery
                     ? {
@@ -1806,6 +1846,7 @@ export default function SavedAnalysisViewer() {
                   if (value === "__all__") {
                     setSelectedRecoveryId(null);
                     setShowAllSegments(true);
+                    setShowSelectedPath(false);
                     setAnalysisVisible(true);
                     audioScopeRef.current = { kind: "all" };
                   } else if (value.startsWith("__recovery__:")) {
@@ -1853,8 +1894,23 @@ export default function SavedAnalysisViewer() {
                     );
                   })}
               </select>
+              <button
+                className="path-toggle"
+                type="button"
+                aria-pressed={showSelectedPath}
+                disabled={!selectedSegmentId && !selectedRecovery}
+                onClick={() => {
+                  setAnalysisVisible(true);
+                  setShowAllSegments(false);
+                  setShowSelectedPath((visible) => !visible);
+                }}
+              >
+                {showSelectedPath ? "Hide path" : "Show selected path"}
+              </button>
               <span>
-                {showAllSegments
+                {showSelectedPath
+                  ? "Path within the frame (image coordinates), not ground position."
+                  : showAllSegments
                   ? "All boxes are shown; the selected segment is yellow."
                   : selectedRecovery
                     ? "Only this unmerged recovery candidate is shown."

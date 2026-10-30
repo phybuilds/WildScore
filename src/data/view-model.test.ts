@@ -14,6 +14,7 @@ import {
   formatTime,
   frameAtTime,
   geometryAnchorTime,
+  geometryCentroidPath,
   segmentStartTime,
 } from "./view-model.ts";
 
@@ -61,6 +62,16 @@ test("recovery navigation uses the earliest analysed geometry frame", () => {
   );
   assert.equal(geometryAnchorTime([], 15, 18.3), 18.3);
   assert.equal(geometryAnchorTime([{ frame_index: 274 }], 0, 18.3), 18.3);
+});
+
+test("builds a frame-ordered image-space centroid path", () => {
+  assert.equal(
+    geometryCentroidPath([
+      { frame_index: 2, box: { left: 10, top: 20, right: 30, bottom: 40 } },
+      { frame_index: 1, box: { left: 0, top: 2, right: 10, bottom: 12 } },
+    ]),
+    "5,7 20,30",
+  );
 });
 
 test("indexes geometry without merging gap-separated segments", () => {

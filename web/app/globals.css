@@ -788,6 +788,16 @@ h2 {
   stroke-dasharray: 6 4;
 }
 
+.evidence-overlay .selected-track-path {
+  fill: none;
+  stroke: #f3d85f;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.5px;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 2px rgba(30, 36, 31, 0.85));
+}
+
 .frame-readout {
   position: absolute;
   z-index: 2;
@@ -852,7 +862,7 @@ h2 {
 
 .segment-focus-bar {
   display: grid;
-  grid-template-columns: auto minmax(220px, 1fr) auto;
+  grid-template-columns: auto minmax(220px, 1fr) auto minmax(180px, auto);
   gap: 10px 12px;
   align-items: center;
   padding: 11px 0;
@@ -860,6 +870,13 @@ h2 {
   color: var(--muted);
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 0.72rem;
+}
+
+.segment-focus-bar .path-toggle {
+  min-height: 36px;
+  padding: 5px 10px;
+  border-width: 1px;
+  font-size: 0.7rem;
 }
 
 .segment-focus-bar label {
@@ -1324,6 +1341,14 @@ footer {
   border-bottom: 1px solid rgba(46, 45, 41, 0.24);
 }
 
+.timeline-row.has-unreviewed-events .presence-bar {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--blue) 0 4px,
+    rgba(31, 78, 143, 0.28) 4px 8px
+  );
+}
+
 .workspace.is-saved-replay-running .timeline-track::after {
   position: absolute;
   z-index: 2;
@@ -1387,10 +1412,53 @@ footer {
   filter: saturate(1.12);
 }
 
+.event-marker.proposed {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--event-color) 0 3px,
+    var(--paper-light) 3px 6px
+  );
+}
+
 .event-marker.rejected {
+  position: absolute;
   background: var(--paper-light);
   box-shadow: 0 0 0 1px var(--event-color);
   opacity: 0.55;
+}
+
+.event-marker.rejected::after {
+  position: absolute;
+  top: 5px;
+  left: -3px;
+  width: 18px;
+  height: 2px;
+  background: var(--event-color);
+  content: "";
+  transform: rotate(-35deg);
+}
+
+.event-marker.uncertain {
+  border: 2px dotted var(--event-color);
+  background: var(--paper-light);
+  box-shadow: none;
+}
+
+.review-progress-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 6px 0 8px 112px;
+  color: var(--muted);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.67rem;
+  letter-spacing: 0.02em;
+}
+
+.review-progress-strip strong {
+  margin-right: 4px;
+  color: var(--blue-dark);
+  text-transform: uppercase;
 }
 
 .timeline-playhead {
@@ -1435,6 +1503,19 @@ footer {
   height: 10px;
   background: #9a4f35;
   transform: rotate(45deg);
+}
+
+.timeline-legend .legend-open {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--blue) 0 3px,
+    var(--paper-light) 3px 6px
+  );
+}
+
+.timeline-legend .legend-uncertain {
+  border: 2px dotted var(--blue-dark);
+  background: transparent;
 }
 
 .empty-timeline {
@@ -1841,6 +1922,10 @@ footer {
 
   .segment-focus-bar span {
     white-space: normal;
+  }
+
+  .review-progress-strip {
+    margin-left: 0;
   }
 
   .recovery-grid {

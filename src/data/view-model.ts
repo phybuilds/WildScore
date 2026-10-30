@@ -61,6 +61,15 @@ export function geometryAnchorTime(
   return Number.isFinite(firstFrame) ? firstFrame / fps : fallbackTime;
 }
 
+export function geometryCentroidPath(
+  geometry: Pick<GeometryRecord, "frame_index" | "box">[],
+): string {
+  return [...geometry]
+    .sort((left, right) => left.frame_index - right.frame_index)
+    .map(({ box }) => `${(box.left + box.right) / 2},${(box.top + box.bottom) / 2}`)
+    .join(" ");
+}
+
 export function buildFrameGeometryIndex(
   segments: PresenceSegment[],
 ): Map<number, VisibleGeometry[]> {
