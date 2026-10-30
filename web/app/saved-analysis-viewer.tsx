@@ -32,6 +32,7 @@ import {
   type VisibleGeometry,
 } from "../../src/data/view-model";
 import { buildEventCsv } from "../../src/export/event-csv";
+import { buildTrackSummaryCsv } from "../../src/export/track-summary-csv";
 import { buildRecoveryCsv } from "../../src/export/recovery-csv";
 import { buildDevelopmentEvidenceSummary } from "../../src/evaluation/evidence-summary";
 import {
@@ -1052,6 +1053,23 @@ export default function SavedAnalysisViewer() {
     link.remove();
     setExportedReviewState(activeReviewState);
     setAnnouncement("CSV downloaded. Current event and label changes are exported.");
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  function downloadTrackSummaryCsv() {
+    if (!bundle) return;
+    const blob = new Blob([buildTrackSummaryCsv(bundle, activeReviewState)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${bundle.clip.clip_id}-wildscore-track-summary.csv`;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setAnnouncement("Track summary CSV downloaded with pixel-space movement metrics.");
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
@@ -2198,8 +2216,9 @@ export default function SavedAnalysisViewer() {
                   : "CSV up to date"}
               </span>
               <button className="primary-action" type="button" onClick={downloadCsv}>
-                Download CSV
+                Event CSV
               </button>
+              <button type="button" onClick={downloadTrackSummaryCsv}>Track metrics CSV</button>
             </div>
           </div>
         </div>
@@ -2342,7 +2361,9 @@ export default function SavedAnalysisViewer() {
         </div>
         <p className="timeline-note">
           CSV includes every proposal, including rejected and unreviewed records. It is a
-          WildScore event export, not a Camtrap DP package.
+          WildScore event export, not a Camtrap DP package. Track metrics are descriptive
+          pixel-space measurements; perspective and camera motion prevent real-world speed
+          claims without site calibration.
         </p>
       </section>
 

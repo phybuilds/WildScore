@@ -13,7 +13,7 @@
   },
   "packageManager": "npm@11.19.1",
   "scripts": {
-    "test": "npm run test:cli-args && npm run test:demo-integrity && npm run test:http-range && npm run test:sam-parser && npm run test:sam-run-config && npm run test:sam-object-prompt && npm run test:missing-animal-annotation && npm run test:missing-animal-queue && npm run test:events && npm run test:track-overlap && npm run test:schema && npm run test:recovery-schema && npm run test:public-demo && npm run test:view-model && npm run test:review && npm run test:recovery-review && npm run test:csv && npm run test:recovery-csv && npm run test:audio && npm run test:scheduler && npm run test:evaluation && npm run test:local-overlay && npm run test:evidence-summary && npm run test:saved-replay && npm run test:review-flow",
+    "test": "npm run test:cli-args && npm run test:demo-integrity && npm run test:http-range && npm run test:sam-parser && npm run test:sam-run-config && npm run test:sam-object-prompt && npm run test:missing-animal-annotation && npm run test:missing-animal-queue && npm run test:events && npm run test:track-overlap && npm run test:schema && npm run test:recovery-schema && npm run test:public-demo && npm run test:view-model && npm run test:review && npm run test:recovery-review && npm run test:csv && npm run test:track-summary-csv && npm run test:recovery-csv && npm run test:audio && npm run test:scheduler && npm run test:evaluation && npm run test:local-overlay && npm run test:evidence-summary && npm run test:saved-replay && npm run test:review-flow",
     "dev": "next dev web --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit -p web/tsconfig.json",
     "check:public": "node scripts/check-public-output.mjs",
@@ -44,6 +44,7 @@
     "test:review": "node --test src/review/review-state.test.ts",
     "test:recovery-review": "node --test src/review/recovery-state.test.ts",
     "test:csv": "node --test src/export/event-csv.test.ts",
+    "test:track-summary-csv": "node --test src/export/track-summary-csv.test.ts",
     "test:recovery-csv": "node --test src/export/recovery-csv.test.ts",
     "test:audio": "node --test src/audio/cue-builder.test.ts",
     "test:scheduler": "node --test src/audio/scheduler.test.ts",
