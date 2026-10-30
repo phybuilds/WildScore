@@ -21,3 +21,15 @@ test("rejects unknown commands and unsafe ports", () => {
   assert.throws(() => parseCliArgs(["--demo", "--port=80"]), /1024/u);
   assert.throws(() => parseCliArgs(["--demo", "--wat"]), /Unknown/u);
 });
+
+test("parses bounded recovery preflight options", () => {
+  assert.deepEqual(
+    parseCliArgs(["recover", "reports.json", "--dry-run", "--max-calls=4"]),
+    { mode: "recover", batchPath: "reports.json", dryRun: true, maxCalls: 4 },
+  );
+  assert.throws(() => parseCliArgs(["recover", "reports.json"]), /not enabled/u);
+  assert.throws(
+    () => parseCliArgs(["recover", "reports.json", "--dry-run", "--max-calls=17"]),
+    /1 to 16/u,
+  );
+});

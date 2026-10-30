@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { parseCliArgs } from "../src/cli/args.mjs";
 import { verifyDemoAssets } from "../src/cli/demo-integrity.mjs";
 import { parseByteRange } from "../src/cli/http-range.mjs";
+import { loadRecoveryBatch } from "../src/cli/recovery-batch.mjs";
 
 const REPOSITORY_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const DEMO_DIRECTORY = path.join(REPOSITORY_ROOT, "web/public/demo");
@@ -28,6 +29,7 @@ function printHelp() {
     "WildScore",
     "",
     "  wildscore --demo [--check] [--port 4173]",
+    "  wildscore recover <batch.json> --dry-run [--max-calls 8]",
     "",
     "Replays the bundled cached analysis without an API key or model call.",
     "--check verifies bundled asset integrity without building or serving.",
@@ -120,6 +122,11 @@ try {
   const options = parseCliArgs(process.argv.slice(2));
   if (options.mode === "help") {
     printHelp();
+  } else if (options.mode === "recover") {
+    const plan = await loadRecoveryBatch(options.batchPath, options.maxCalls);
+    console.log(`Recovery preflight passed for ${plan.annotationCount} annotation${plan.annotationCount === 1 ? "" : "s"}.`);
+    console.log(`Planned model: ${plan.model}; maximum calls: ${plan.maxCalls}.`);
+    console.log("Optional broad labels will not be included in SAM geometry prompts. No model call was made.");
   } else {
     const manifest = await verifyDemoAssets(DEMO_DIRECTORY);
     console.log(`Verified ${Object.keys(manifest.assets).length} bundled demo assets.`);

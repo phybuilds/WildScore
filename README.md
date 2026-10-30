@@ -83,6 +83,16 @@ npm run check:public
 npm run dev
 ```
 
+Validate one browser-exported missed-animal batch without loading an API key or
+making a model call:
+
+```bash
+node bin/wildscore.mjs recover missing-animals.json --dry-run --max-calls 8
+```
+
+Live batch recovery is not enabled by this command yet; the preflight establishes
+the bounded, label-free box-prompt contract that the local Meta SAM runner will use.
+
 The viewer validates the saved bundle before use. Event, label and recovery
 reviews use bundle-scoped browser-local storage and never leave the device.
 Resetting reviews restores the immutable stored bundle. CSV export

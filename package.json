@@ -13,7 +13,7 @@
   },
   "packageManager": "npm@11.19.1",
   "scripts": {
-    "test": "npm run test:cli-args && npm run test:demo-integrity && npm run test:http-range && npm run test:sam-parser && npm run test:sam-run-config && npm run test:sam-object-prompt && npm run test:missing-animal-annotation && npm run test:missing-animal-queue && npm run test:events && npm run test:track-overlap && npm run test:schema && npm run test:recovery-schema && npm run test:public-demo && npm run test:view-model && npm run test:review && npm run test:recovery-review && npm run test:csv && npm run test:track-summary-csv && npm run test:recovery-csv && npm run test:audio && npm run test:scheduler && npm run test:evaluation && npm run test:local-overlay && npm run test:evidence-summary && npm run test:saved-replay && npm run test:review-flow",
+    "test": "npm run test:cli-args && npm run test:recovery-batch && npm run test:demo-integrity && npm run test:http-range && npm run test:sam-parser && npm run test:sam-run-config && npm run test:sam-object-prompt && npm run test:missing-animal-annotation && npm run test:missing-animal-queue && npm run test:events && npm run test:track-overlap && npm run test:schema && npm run test:recovery-schema && npm run test:public-demo && npm run test:view-model && npm run test:review && npm run test:recovery-review && npm run test:csv && npm run test:track-summary-csv && npm run test:recovery-csv && npm run test:audio && npm run test:scheduler && npm run test:evaluation && npm run test:local-overlay && npm run test:evidence-summary && npm run test:saved-replay && npm run test:review-flow",
     "dev": "next dev web --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit -p web/tsconfig.json",
     "check:public": "node scripts/check-public-output.mjs",
@@ -31,6 +31,7 @@
     "check:model-key": "node --env-file=.env.local scripts/check-model-key.mjs",
     "test:sam-parser": "node --test scripts/lib/sam-output.test.mjs",
     "test:cli-args": "node --test src/cli/args.test.mjs",
+    "test:recovery-batch": "node --test src/cli/recovery-batch.test.mjs",
     "test:demo-integrity": "node --test src/cli/demo-integrity.test.mjs",
     "test:http-range": "node --test src/cli/http-range.test.mjs",
     "test:sam-run-config": "node --test scripts/lib/sam-run-config.test.mjs",
