@@ -27,7 +27,7 @@ import {
   formatTime,
   frameAtTime,
   geometryAnchorTime,
-  geometryCentroidPath,
+  geometryFadingTrail,
   humanizeIdentifier,
   segmentStartTime,
   type VisibleGeometry,
@@ -58,6 +58,7 @@ import {
 } from "../../src/review/review-state";
 import {
   createInitialRecoveryReviewState,
+  currentRecoveryLabel,
   recoveryBundleKey,
   recoveryReviewReducer,
   reviewedRecoveryCount,
@@ -178,7 +179,7 @@ export default function SavedAnalysisViewer() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [mediaExpanded, setMediaExpanded] = useState(false);
   const [workspaceFullscreen, setWorkspaceFullscreen] = useState(false);
-  const [showSelectedPath, setShowSelectedPath] = useState(false);
+  const [showSelectedTrail, setShowSelectedTrail] = useState(false);
   const [missingAnimalMode, setMissingAnimalMode] = useState(false);
   const [missingAnimalBox, setMissingAnimalBox] = useState<InclusiveMediaBox | null>(null);
   const [missingAnimalLabel, setMissingAnimalLabel] = useState("");
@@ -318,6 +319,10 @@ export default function SavedAnalysisViewer() {
         : recoveryReviewState,
     [recovery, recoveryReviewState],
   );
+  const acceptedRecoveryCandidates = recovery?.candidates.filter(
+    (candidate) =>
+      activeRecoveryReviewState.decisions[candidate.candidate_id] === "accepted",
+  ) ?? [];
   const selectedRecovery = recovery?.candidates.find(
     (candidate) => candidate.candidate_id === selectedRecoveryId,
   );
@@ -358,9 +363,27 @@ export default function SavedAnalysisViewer() {
   const selectedSegment = bundle?.segments.find(
     (segment) => segment.segment_id === selectedSegmentId,
   );
-  const selectedTrackPath = geometryCentroidPath(
-    selectedRecovery?.geometry ?? selectedSegment?.geometry ?? [],
-  );
+  const selectedTrackTrail = selectedGeometry.length > 0
+    ? geometryFadingTrail(
+        selectedRecovery?.geometry ?? selectedSegment?.geometry ?? [],
+        currentFrame,
+        Math.max(
+          2,
+          Math.round(
+            (selectedRecovery
+              ? recovery?.processed_fps ?? 10
+              : bundle?.clip.processed_fps ?? 10) * 1.25,
+          ),
+        ),
+      )
+    : [];
+  const selectedRecoveryLabel = recovery && selectedRecovery
+    ? currentRecoveryLabel(
+        recovery,
+        activeRecoveryReviewState,
+        selectedRecovery.candidate_id,
+      )
+    : null;
   const selectedLabel =
     bundle && selectedSegment
       ? currentReviewedLabel(
@@ -766,9 +789,10 @@ export default function SavedAnalysisViewer() {
   }, []);
 
   useEffect(() => {
-    if (!selectedSegmentId) return;
+    const activeTrackId = selectedRecoveryId ?? selectedSegmentId;
+    if (!activeTrackId) return;
     const list = timelineListRef.current;
-    const row = timelineRowRefs.current.get(selectedSegmentId);
+    const row = timelineRowRefs.current.get(activeTrackId);
     if (!list || !row) return;
     const listRect = list.getBoundingClientRect();
     const rowRect = row.getBoundingClientRect();
@@ -781,7 +805,7 @@ export default function SavedAnalysisViewer() {
       top: Math.max(0, nextScrollTop),
       behavior: "smooth",
     });
-  }, [selectedSegmentId]);
+  }, [selectedRecoveryId, selectedSegmentId]);
 
   function focusWorkbench() {
     window.requestAnimationFrame(() => {
@@ -887,6 +911,7 @@ export default function SavedAnalysisViewer() {
   function selectRecoveryCandidate(candidate: RecoveryCandidate) {
     setSelectedRecoveryId(candidate.candidate_id);
     setSelectedEventId(null);
+    setSelectedSegmentId(null);
     setShowAllSegments(false);
     setAnalysisVisible(true);
     setReplayEnd(null);
@@ -1105,7 +1130,12 @@ export default function SavedAnalysisViewer() {
 
   function downloadTrackSummaryCsv() {
     if (!bundle) return;
-    const blob = new Blob([buildTrackSummaryCsv(bundle, activeReviewState)], {
+    const blob = new Blob([buildTrackSummaryCsv(
+      bundle,
+      activeReviewState,
+      recovery ?? undefined,
+      recovery ? activeRecoveryReviewState : undefined,
+    )], {
       type: "text/csv;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
@@ -1116,7 +1146,7 @@ export default function SavedAnalysisViewer() {
     document.body.append(link);
     link.click();
     link.remove();
-    setAnnouncement("Track summary CSV downloaded with pixel-space movement metrics.");
+    setAnnouncement("Track summary CSV downloaded with accepted recovery provenance and pixel-space movement metrics.");
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
@@ -1361,6 +1391,9 @@ export default function SavedAnalysisViewer() {
         <span>
           <strong>Labels</strong> reviewed {labelReviewCounts.reviewed} · open {labelReviewCounts.open}
         </span>
+        <span>
+          <strong>Recovery</strong> accepted {acceptedRecoveryCandidates.length}
+        </span>
       </div>
       <div className="timeline-list" ref={timelineListRef}>
         {readyBundle.segments.map((segment) => {
@@ -1374,7 +1407,10 @@ export default function SavedAnalysisViewer() {
           );
           const duration = readyBundle.clip.processed_duration_s;
           const isActive = segment.segment_id === selectedSegmentId;
-          const isDimmed = !showAllSegments && Boolean(selectedSegmentId) && !isActive;
+          const isDimmed =
+            !showAllSegments &&
+            Boolean(selectedSegmentId || selectedRecoveryId) &&
+            !isActive;
           const allEventsReviewed = events.every((event) =>
             (activeReviewState.event_reviews[event.event_id]?.decision ?? event.decision) !== "proposed");
           return (
@@ -1428,6 +1464,53 @@ export default function SavedAnalysisViewer() {
             </div>
           );
         })}
+        {acceptedRecoveryCandidates.map((candidate) => {
+          const label = currentRecoveryLabel(
+            loadState.recovery,
+            activeRecoveryReviewState,
+            candidate.candidate_id,
+          );
+          const duration = readyBundle.clip.processed_duration_s;
+          const isActive = candidate.candidate_id === selectedRecoveryId;
+          const isDimmed =
+            !showAllSegments &&
+            Boolean(selectedSegmentId || selectedRecoveryId) &&
+            !isActive;
+          return (
+            <div
+              className={`timeline-row is-recovery ${isActive ? "is-active" : ""} ${
+                isDimmed ? "is-dimmed" : ""
+              }`}
+              key={candidate.candidate_id}
+              ref={(node) => {
+                if (node) timelineRowRefs.current.set(candidate.candidate_id, node);
+                else timelineRowRefs.current.delete(candidate.candidate_id);
+              }}
+            >
+              <div className="timeline-label">
+                <strong>{humanizeIdentifier(label.label)}</strong>
+                <span>{candidate.candidate_id} · recovered</span>
+              </div>
+              <div className="timeline-track">
+                <button
+                  className="presence-bar recovery-presence-bar"
+                  type="button"
+                  style={{
+                    left: `${(candidate.start_s / duration) * 100}%`,
+                    width: `${Math.max(0.6, ((candidate.end_s - candidate.start_s) / duration) * 100)}%`,
+                  }}
+                  aria-label={`Accepted recovery track ${candidate.candidate_id}, ${formatTime(candidate.start_s)} to ${formatTime(candidate.end_s)}`}
+                  aria-pressed={isActive}
+                  onClick={() => selectRecoveryCandidate(candidate)}
+                />
+                <span
+                  className="timeline-playhead"
+                  style={{ left: `${Math.min(100, (currentTime / duration) * 100)}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
       <div className="timeline-legend">
         <span><i className="legend-presence" /> Saved presence</span>
@@ -1435,10 +1518,12 @@ export default function SavedAnalysisViewer() {
         <span><i className="legend-disappearance" /> Disappearance proposal</span>
         <span><i className="legend-open" /> Unreviewed</span>
         <span><i className="legend-uncertain" /> Can’t tell</span>
+        <span><i className="legend-recovery" /> Accepted recovery track</span>
       </div>
       <p className="timeline-note">
         Rows are observed segments, not persistent animal identities. Focused review dims
-        other tracks without removing them; View all restores full contrast.
+        other tracks without removing them. Accepted recovery rows are supplemental presence
+        evidence; they do not create events or merge animal identities.
       </p>
     </section>
   );
@@ -1458,8 +1543,8 @@ export default function SavedAnalysisViewer() {
       <div className="recovery-menu-panel">
         <p>
           These candidates came from separate targeted SAM runs after the generic
-          pass missed animals. They remain separate from the saved event log until
-          a researcher reviews them; keeping one does not merge animal identities.
+          pass missed animals. Accepted tracks appear as supplemental timeline rows
+          and in the track summary export; they do not create events or merge animal identities.
         </p>
         <div className="recovery-grid">
           {loadState.recovery.candidates.map((candidate) => {
@@ -1599,17 +1684,22 @@ export default function SavedAnalysisViewer() {
                 preserveAspectRatio="xMidYMid meet"
                 aria-hidden="true"
               >
-                {showSelectedPath && selectedTrackPath && (
-                  <polyline
-                    className="selected-track-path"
-                    points={selectedTrackPath}
+                {showSelectedTrail && selectedTrackTrail.map((trail, index) => (
+                  <line
+                    className="selected-track-trail"
+                    key={`${currentFrame}-${index}`}
+                    x1={trail.x1}
+                    y1={trail.y1}
+                    x2={trail.x2}
+                    y2={trail.y2}
+                    opacity={trail.opacity}
                   />
-                )}
+                ))}
                 {displayedGeometry.map((geometry) => {
                   const label = selectedRecovery
-                    ? {
-                        label: `${selectedRecovery.suggested_label} candidate`,
-                        source: "model" as const,
+                    ? selectedRecoveryLabel ?? {
+                        label: "unlabelled animal",
+                        source: "unlabelled" as const,
                       }
                     : currentReviewedLabel(
                         readyBundle,
@@ -1846,7 +1936,7 @@ export default function SavedAnalysisViewer() {
                   if (value === "__all__") {
                     setSelectedRecoveryId(null);
                     setShowAllSegments(true);
-                    setShowSelectedPath(false);
+                    setShowSelectedTrail(false);
                     setAnalysisVisible(true);
                     audioScopeRef.current = { kind: "all" };
                   } else if (value.startsWith("__recovery__:")) {
@@ -1897,19 +1987,19 @@ export default function SavedAnalysisViewer() {
               <button
                 className="path-toggle"
                 type="button"
-                aria-pressed={showSelectedPath}
+                aria-pressed={showSelectedTrail}
                 disabled={!selectedSegmentId && !selectedRecovery}
                 onClick={() => {
                   setAnalysisVisible(true);
                   setShowAllSegments(false);
-                  setShowSelectedPath((visible) => !visible);
+                  setShowSelectedTrail((visible) => !visible);
                 }}
               >
-                {showSelectedPath ? "Hide path" : "Show selected path"}
+                {showSelectedTrail ? "Hide trail" : "Show fading trail"}
               </button>
               <span>
-                {showSelectedPath
-                  ? "Path within the frame (image coordinates), not ground position."
+                {showSelectedTrail
+                  ? "Recent image-space movement follows the animal and disappears when the track is absent."
                   : showAllSegments
                   ? "All boxes are shown; the selected segment is yellow."
                   : selectedRecovery

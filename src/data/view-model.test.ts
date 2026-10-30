@@ -14,7 +14,7 @@ import {
   formatTime,
   frameAtTime,
   geometryAnchorTime,
-  geometryCentroidPath,
+  geometryFadingTrail,
   segmentStartTime,
 } from "./view-model.ts";
 
@@ -64,13 +64,27 @@ test("recovery navigation uses the earliest analysed geometry frame", () => {
   assert.equal(geometryAnchorTime([{ frame_index: 274 }], 0, 18.3), 18.3);
 });
 
-test("builds a frame-ordered image-space centroid path", () => {
-  assert.equal(
-    geometryCentroidPath([
-      { frame_index: 2, box: { left: 10, top: 20, right: 30, bottom: 40 } },
-      { frame_index: 1, box: { left: 0, top: 2, right: 10, bottom: 12 } },
-    ]),
-    "5,7 20,30",
+test("builds only the recent, contiguous trail up to the current frame", () => {
+  assert.deepEqual(
+    geometryFadingTrail([
+      { frame_index: 5, box: { left: 40, top: 40, right: 60, bottom: 60 } },
+      { frame_index: 3, box: { left: 20, top: 20, right: 40, bottom: 40 } },
+      { frame_index: 4, box: { left: 30, top: 30, right: 50, bottom: 50 } },
+      { frame_index: 1, box: { left: 0, top: 0, right: 20, bottom: 20 } },
+    ], 5, 4),
+    [
+      { x1: 30, y1: 30, x2: 40, y2: 40, opacity: 0.5 },
+      { x1: 40, y1: 40, x2: 50, y2: 50, opacity: 0.88 },
+    ],
+  );
+});
+
+test("hides a trail when the selected animal is absent at the current frame", () => {
+  assert.deepEqual(
+    geometryFadingTrail([
+      { frame_index: 4, box: { left: 30, top: 30, right: 50, bottom: 50 } },
+    ], 5, 4),
+    [],
   );
 });
 

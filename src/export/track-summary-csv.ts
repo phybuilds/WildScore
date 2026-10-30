@@ -1,4 +1,9 @@
 import type { PresenceSegment, WildScoreBundle } from "../data/bundle-schema";
+import type { RecoveryCandidateBundle } from "../data/recovery-schema";
+import {
+  currentRecoveryLabel,
+  type RecoveryReviewState,
+} from "../review/recovery-state.ts";
 import { currentReviewedLabel, type ReviewState } from "../review/review-state.ts";
 
 export const TRACK_SUMMARY_CSV_HEADER = [
@@ -6,6 +11,10 @@ export const TRACK_SUMMARY_CSV_HEADER = [
   "clip_id",
   "segment_id",
   "sam_object_id",
+  "track_layer",
+  "derivation_source",
+  "track_review_status",
+  "source_prompt",
   "current_label_id",
   "label_source",
   "label_review_status",
@@ -77,7 +86,12 @@ export function trackMetrics(segment: PresenceSegment, fps: number) {
   };
 }
 
-export function buildTrackSummaryCsv(bundle: WildScoreBundle, state: ReviewState): string {
+export function buildTrackSummaryCsv(
+  bundle: WildScoreBundle,
+  state: ReviewState,
+  recovery?: RecoveryCandidateBundle,
+  recoveryState?: RecoveryReviewState,
+): string {
   const rows = bundle.segments.map((segment) => {
     const label = currentReviewedLabel(bundle, state, segment.segment_id);
     const review = state.label_reviews[segment.segment_id];
@@ -92,6 +106,10 @@ export function buildTrackSummaryCsv(bundle: WildScoreBundle, state: ReviewState
       csvCell(bundle.clip.clip_id),
       csvCell(segment.segment_id),
       csvCell(segment.sam_object_id),
+      csvCell("primary_analysis"),
+      csvCell("sam_concept_geometry"),
+      csvCell("not_applicable"),
+      csvCell(typeof bundle.run.sam_prompt === "string" ? bundle.run.sam_prompt : ""),
       csvCell(label.label, true),
       csvCell(label.source),
       csvCell(review?.decision ?? "proposed"),
@@ -108,5 +126,58 @@ export function buildTrackSummaryCsv(bundle: WildScoreBundle, state: ReviewState
       csvCell(flags.join("|")),
     ].join(",");
   });
+  if (recovery && recoveryState) {
+    for (const candidate of recovery.candidates) {
+      if (recoveryState.decisions[candidate.candidate_id] !== "accepted") continue;
+      const segment: PresenceSegment = {
+        segment_id: candidate.candidate_id,
+        sam_object_id: `recovery:${candidate.source_prompt}:${candidate.source_object_id}`,
+        first_frame: candidate.first_frame,
+        last_frame: candidate.last_frame,
+        start_s: candidate.start_s,
+        end_s: candidate.end_s,
+        already_visible_at_start: candidate.first_frame === 0,
+        still_visible_at_end: candidate.last_frame === recovery.processed_frame_count - 1,
+        geometry: candidate.geometry,
+      };
+      const label = currentRecoveryLabel(
+        recovery,
+        recoveryState,
+        candidate.candidate_id,
+      );
+      const metrics = trackMetrics(segment, recovery.processed_fps);
+      const flags = [
+        ...new Set([
+          ...candidate.uncertainty_flags,
+          "supplemental_targeted_track",
+          "identity_not_merged",
+        ]),
+      ].sort();
+      rows.push([
+        csvCell(bundle.schema_version),
+        csvCell(bundle.clip.clip_id),
+        csvCell(candidate.candidate_id),
+        csvCell(segment.sam_object_id),
+        csvCell("targeted_recovery"),
+        csvCell("meta_sam_targeted_prompt"),
+        csvCell("accepted"),
+        csvCell(candidate.source_prompt),
+        csvCell(label.label, true),
+        csvCell(label.source),
+        csvCell(recoveryState.label_decisions[candidate.candidate_id]?.decision ?? "pending"),
+        csvCell(segment.first_frame),
+        csvCell(segment.last_frame),
+        csvCell(metrics.observed_dwell_s),
+        csvCell(metrics.geometry_samples),
+        csvCell(metrics.path_length_px),
+        csvCell(metrics.mean_centroid_motion_px_s),
+        csvCell(metrics.peak_centroid_motion_px_s),
+        csvCell(metrics.straightness_ratio),
+        csvCell(metrics.mean_box_area_px2),
+        csvCell(metrics.area_flicker_ratio),
+        csvCell(flags.join("|")),
+      ].join(","));
+    }
+  }
   return `${TRACK_SUMMARY_CSV_HEADER.join(",")}\n${rows.join("\n")}\n`;
 }

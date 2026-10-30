@@ -4,6 +4,7 @@ import test from "node:test";
 import type { RecoveryCandidateBundle } from "../data/recovery-schema.ts";
 import {
   createInitialRecoveryReviewState,
+  currentRecoveryLabel,
   recoveryReviewReducer,
   reviewedRecoveryCount,
   reviewedRecoveryLabelCount,
@@ -98,4 +99,26 @@ test("stored reviews override stale browser-local decisions", () => {
     decisions: { "recovery-antelope-3": "rejected" },
   });
   assert.equal(restored.decisions["recovery-antelope-3"], "accepted");
+});
+
+test("reviewed recovery labels preserve their source", () => {
+  const initial = createInitialRecoveryReviewState(bundle);
+  assert.deepEqual(
+    currentRecoveryLabel(bundle, initial, "recovery-antelope-3"),
+    { label: "antelope", source: "model" },
+  );
+  const corrected = recoveryReviewReducer(initial, {
+    type: "decide_label",
+    candidate_id: "recovery-antelope-3",
+    decision: "corrected",
+    value: "warthog",
+  });
+  assert.deepEqual(
+    currentRecoveryLabel(bundle, corrected, "recovery-antelope-3"),
+    { label: "warthog", source: "human" },
+  );
+  assert.deepEqual(
+    currentRecoveryLabel(bundle, initial, "recovery-without-proposal"),
+    { label: "unlabelled animal", source: "unlabelled" },
+  );
 });

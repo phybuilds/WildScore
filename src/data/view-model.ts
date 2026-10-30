@@ -61,13 +61,48 @@ export function geometryAnchorTime(
   return Number.isFinite(firstFrame) ? firstFrame / fps : fallbackTime;
 }
 
-export function geometryCentroidPath(
+export interface GeometryTrailSegment {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  opacity: number;
+}
+
+export function geometryFadingTrail(
   geometry: Pick<GeometryRecord, "frame_index" | "box">[],
-): string {
-  return [...geometry]
-    .sort((left, right) => left.frame_index - right.frame_index)
-    .map(({ box }) => `${(box.left + box.right) / 2},${(box.top + box.bottom) / 2}`)
-    .join(" ");
+  currentFrame: number,
+  tailFrameCount: number,
+): GeometryTrailSegment[] {
+  if (!Number.isInteger(currentFrame) || !Number.isInteger(tailFrameCount) || tailFrameCount < 1) {
+    return [];
+  }
+  const recent = [...geometry]
+    .filter(
+      (record) =>
+        record.frame_index <= currentFrame &&
+        record.frame_index >= currentFrame - tailFrameCount,
+    )
+    .sort((left, right) => left.frame_index - right.frame_index);
+  if (recent.at(-1)?.frame_index !== currentFrame) return [];
+
+  let contiguousStart = 0;
+  for (let index = 1; index < recent.length; index += 1) {
+    if (recent[index].frame_index - recent[index - 1].frame_index > 1) {
+      contiguousStart = index;
+    }
+  }
+  const points = recent.slice(contiguousStart).map(({ box }) => ({
+    x: (box.left + box.right) / 2,
+    y: (box.top + box.bottom) / 2,
+  }));
+  return points.slice(1).map((point, index) => ({
+    x1: points[index].x,
+    y1: points[index].y,
+    x2: point.x,
+    y2: point.y,
+    opacity: Number((0.12 + (0.76 * (index + 1)) / (points.length - 1)).toFixed(3)),
+  }));
 }
 
 export function buildFrameGeometryIndex(

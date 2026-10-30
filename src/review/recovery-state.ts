@@ -125,3 +125,22 @@ export function reviewedRecoveryLabelCount(state: RecoveryReviewState): number {
 export function reviewedRecoveryCount(state: RecoveryReviewState): number {
   return Object.values(state.decisions).filter((decision) => decision !== "pending").length;
 }
+
+export function currentRecoveryLabel(
+  bundle: RecoveryCandidateBundle,
+  state: RecoveryReviewState,
+  candidateId: string,
+): { label: string; source: "human" | "model" | "unlabelled" } {
+  const review = state.label_decisions[candidateId];
+  if (
+    review?.value &&
+    (review.decision === "accepted" || review.decision === "corrected")
+  ) {
+    return { label: review.value, source: "human" };
+  }
+  const proposal = bundle.label_proposals.find(
+    (item) => item.candidate_id === candidateId,
+  );
+  if (proposal) return { label: proposal.label_id, source: "model" };
+  return { label: "unlabelled animal", source: "unlabelled" };
+}
