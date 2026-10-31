@@ -7,9 +7,13 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { runAnalysisPreflight } from "../src/cli/analysis-preflight.mjs";
 import { parseCliArgs } from "../src/cli/args.mjs";
+import { prepareAnalysisRun } from "../src/cli/run-preparation.mjs";
 import { verifyDemoAssets } from "../src/cli/demo-integrity.mjs";
+import { runDoctor } from "../src/cli/doctor.mjs";
 import { parseByteRange } from "../src/cli/http-range.mjs";
+import { executeMetaSamRun, MetaSamRunError } from "../src/cli/meta-sam-run.mjs";
 import { loadRecoveryBatch } from "../src/cli/recovery-batch.mjs";
 
 const REPOSITORY_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -29,6 +33,10 @@ function printHelp() {
     "WildScore",
     "",
     "  wildscore --demo [--check] [--port 4173]",
+    "  wildscore doctor",
+    "  wildscore analyse <local-video> --dry-run [--max-seconds 30] [--max-calls 8]",
+    "  wildscore analyse <local-video> --prepare-only [--max-seconds 30]",
+    "  wildscore analyse <local-video> --sam-only --yes [--max-seconds 30] [--max-calls 3]",
     "  wildscore recover <batch.json> --dry-run [--max-calls 8]",
     "",
     "Replays the bundled cached analysis without an API key or model call.",
@@ -122,6 +130,37 @@ try {
   const options = parseCliArgs(process.argv.slice(2));
   if (options.mode === "help") {
     printHelp();
+  } else if (options.mode === "doctor") {
+    const code = await runDoctor();
+    if (code !== 0) process.exitCode = code;
+  } else if (options.mode === "analyse") {
+    await runAnalysisPreflight({
+      videoPath: options.videoPath,
+      maxSeconds: options.maxSeconds,
+      maxCalls: options.maxCalls,
+      log: options.prepareOnly ? () => {} : console.log,
+    });
+    if (options.prepareOnly || options.samOnly) {
+      const prepared = await prepareAnalysisRun({
+        videoPath: options.videoPath,
+        maxSeconds: options.maxSeconds,
+        repositoryRoot: REPOSITORY_ROOT,
+      });
+      if (options.samOnly) {
+        const result = await executeMetaSamRun({
+          repositoryRoot: REPOSITORY_ROOT,
+          runId: prepared.runId,
+          apiKey: process.env.MODEL_API_KEY,
+          maxAttempts: Math.min(options.maxCalls, 3),
+        });
+        console.log(
+          result.reused
+            ? "Verified and reused the private SAM checkpoint; no model call was made."
+            : `SAM completed and remote input deletion was confirmed. Parsed ${result.checkpoint.summary.track_count} track${result.checkpoint.summary.track_count === 1 ? "" : "s"}.`,
+        );
+        console.log("Spark labelling and the final viewer bundle are not part of this SAM-only command.");
+      }
+    }
   } else if (options.mode === "recover") {
     const plan = await loadRecoveryBatch(options.batchPath, options.maxCalls);
     console.log(`Recovery preflight passed for ${plan.annotationCount} annotation${plan.annotationCount === 1 ? "" : "s"}.`);
@@ -137,5 +176,9 @@ try {
   }
 } catch (error) {
   console.error(`WildScore: ${error instanceof Error ? error.message : "Unknown error."}`);
-  process.exitCode = 2;
+  if (error instanceof MetaSamRunError) {
+    process.exitCode = error.stage === "key" ? 3 : error.stage === "validation" ? 6 : 4;
+  } else {
+    process.exitCode = 2;
+  }
 }
