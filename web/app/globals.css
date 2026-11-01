@@ -789,10 +789,17 @@ h2 {
 }
 
 .evidence-overlay .selected-track-trail {
-  stroke: rgba(243, 216, 95, 0.92);
+  stroke: rgba(255, 229, 112, 0.96);
   stroke-linecap: round;
-  stroke-width: 1.7px;
+  stroke-linejoin: round;
+  stroke-width: 2.1px;
   vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 1.5px rgba(255, 245, 199, 0.92));
+}
+
+.evidence-overlay .selected-subject-dimmer {
+  fill: rgba(3, 7, 6, 0.74);
+  transition: opacity 160ms ease;
 }
 
 .frame-readout {
@@ -844,12 +851,6 @@ h2 {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.workspace.is-saved-replay-idle .review-sheet,
-.workspace.is-saved-replay-running .review-sheet {
-  pointer-events: none;
-  opacity: 0.58;
 }
 
 .workspace.is-saved-replay-idle .timeline-track,
@@ -958,7 +959,16 @@ h2 {
   color: var(--blue-dark);
 }
 
+.review-status.kept {
+  color: #397048;
+}
+
 .review-status.rejected {
+  color: #6d3d35;
+  text-decoration: line-through;
+}
+
+.review-status.dismissed {
   color: #6d3d35;
   text-decoration: line-through;
 }
@@ -1136,6 +1146,37 @@ footer {
   margin: 18px 0 0;
 }
 
+.audit-menu-row {
+  position: relative;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: -8px 0 18px;
+}
+
+.audit-menu-row .recovery-menu {
+  margin: 0;
+}
+
+.audit-menu-row .recovery-menu-panel,
+.audit-menu-row .correspondence-audit-panel {
+  position: absolute;
+  z-index: 7;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  max-height: min(430px, 62vh);
+  overflow-y: auto;
+  background: var(--paper-light);
+  box-shadow: 0 12px 26px rgba(46, 45, 41, 0.22);
+}
+
+.audit-menu-row details:not([open]) > .recovery-menu-panel,
+.audit-menu-row details:not([open]) > .correspondence-audit-panel {
+  display: none;
+}
+
 .recovery-menu {
   margin: -8px 0 18px;
   border: 1px solid rgba(31, 78, 143, 0.32);
@@ -1257,6 +1298,170 @@ footer {
   min-height: 34px;
   padding: 5px 8px;
   font-size: 0.7rem;
+}
+
+.correspondence-audit-menu {
+  border: 1px dashed rgba(46, 45, 41, 0.58);
+  background: rgba(238, 235, 220, 0.72);
+}
+
+.correspondence-audit-menu > summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 100%;
+  padding: 10px 11px;
+  color: var(--graphite);
+  cursor: pointer;
+  list-style: none;
+}
+
+.correspondence-audit-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.correspondence-audit-menu > summary::after {
+  content: "+";
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.correspondence-audit-menu[open] > summary::after {
+  content: "−";
+}
+
+.correspondence-audit-menu > summary span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.correspondence-audit-menu > summary strong {
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+
+.correspondence-audit-menu > summary small,
+.correspondence-audit-menu .audit-count {
+  color: var(--muted);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 600;
+}
+
+.correspondence-audit-menu .audit-count {
+  white-space: nowrap;
+}
+
+.correspondence-audit-panel {
+  padding: 12px;
+  border: 1px solid rgba(46, 45, 41, 0.38);
+}
+
+.audit-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 9px;
+}
+
+.audit-tabs button {
+  min-height: 36px;
+  padding: 5px 6px;
+  border-color: rgba(46, 45, 41, 0.42);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.62rem;
+  line-height: 1.2;
+}
+
+.audit-tabs button.is-active {
+  border-color: var(--graphite);
+  background: rgba(46, 45, 41, 0.09);
+  color: var(--graphite);
+}
+
+.correspondence-audit-list {
+  display: grid;
+  gap: 6px;
+  max-height: 255px;
+  overflow-y: auto;
+}
+
+.correspondence-audit-item {
+  display: grid;
+  gap: 3px;
+  padding: 10px 11px;
+  border: 1px dashed rgba(46, 45, 41, 0.42);
+  background: rgba(255, 253, 243, 0.82);
+  color: var(--graphite);
+  text-align: left;
+}
+
+.correspondence-audit-item:hover,
+.correspondence-audit-item.is-selected {
+  border-style: solid;
+  border-color: var(--graphite);
+  box-shadow: inset 3px 0 0 rgba(46, 45, 41, 0.72);
+}
+
+.correspondence-audit-item.kept {
+  border-left: 4px solid rgba(57, 112, 72, 0.78);
+}
+
+.correspondence-audit-item.dismissed {
+  border-left: 4px solid rgba(149, 70, 62, 0.72);
+  opacity: 0.68;
+}
+
+.correspondence-audit-item.uncertain {
+  border-left: 4px solid rgba(180, 143, 48, 0.78);
+}
+
+.correspondence-audit-item > span,
+.correspondence-audit-item > small,
+.audit-disclaimer {
+  color: var(--muted);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+
+.audit-menu-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.audit-menu-actions button {
+  flex: 1;
+  min-height: 34px;
+  padding: 5px 7px;
+  font-size: 0.68rem;
+}
+
+.correspondence-audit-item > span {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.audit-disclaimer {
+  margin: 10px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid rgba(46, 45, 41, 0.2);
+}
+
+.evidence-overlay .audit-geometry rect {
+  fill: rgba(234, 230, 210, 0.03);
+  stroke: #e8e2c7;
+  stroke-width: 1.5px;
+  stroke-dasharray: 3 5;
+}
+
+.evidence-overlay .recovery-geometry rect {
+  fill: rgba(44, 117, 108, 0.04);
+  stroke: #79d0c4;
+  stroke-dasharray: 8 4;
 }
 
 .timeline-section {
@@ -1389,6 +1594,26 @@ footer {
 .recovery-presence-bar:hover,
 .recovery-presence-bar:focus-visible,
 .recovery-presence-bar[aria-pressed="true"] {
+  outline: 2px solid #d7a819;
+  outline-offset: 2px;
+}
+
+.audit-addition-presence-bar {
+  min-height: 8px;
+  padding: 0;
+  border: 1px dotted #6b6253;
+  border-radius: 1px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(107, 98, 83, 0.72) 0 4px,
+    transparent 4px 8px
+  );
+  cursor: pointer;
+}
+
+.audit-addition-presence-bar:hover,
+.audit-addition-presence-bar:focus-visible,
+.audit-addition-presence-bar[aria-pressed="true"] {
   outline: 2px solid #d7a819;
   outline-offset: 2px;
 }
@@ -1541,6 +1766,15 @@ footer {
     90deg,
     rgba(31, 78, 143, 0.72) 0 6px,
     transparent 6px 9px
+  );
+}
+
+.timeline-legend .legend-audit-addition {
+  border: 1px dotted #6b6253;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(107, 98, 83, 0.72) 0 4px,
+    transparent 4px 8px
   );
 }
 
@@ -1955,6 +2189,11 @@ footer {
   }
 
   .recovery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-menu-row,
+  .audit-tabs {
     grid-template-columns: 1fr;
   }
 

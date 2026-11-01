@@ -93,6 +93,27 @@ node bin/wildscore.mjs recover missing-animals.json --dry-run --max-calls 8
 Live batch recovery is not enabled by this command yet; the preflight establishes
 the bounded, label-free box-prompt contract that the local Meta SAM runner will use.
 
+The live `analyse --sam-only --yes` path prepares a metadata-stripped derivative,
+runs or resumes Meta SAM 3.1, confirms remote input deletion, and stores deterministic
+presence segments and event proposals under the private run directory. It also creates
+a private geometry-only viewer bundle. Open the printed run ID without another model
+call or credential:
+
+```bash
+node bin/wildscore.mjs view run-0123456789abcdef
+```
+
+Run the bounded full pipeline only after checking the dry-run plan:
+
+```bash
+node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --dry-run --max-calls 8
+node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --full --yes --max-calls 8
+```
+
+The total call cap reserves up to three attempts for SAM and uses the remainder
+for visible-evidence-only Muse Spark labels. Spark failures do not discard the
+SAM timeline; the resulting private viewer remains available with unlabelled tracks.
+
 The viewer validates the saved bundle before use. Event, label and recovery
 reviews use bundle-scoped browser-local storage and never leave the device.
 Resetting reviews restores the immutable stored bundle. CSV export

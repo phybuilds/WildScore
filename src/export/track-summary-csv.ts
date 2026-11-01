@@ -1,5 +1,8 @@
 import type { PresenceSegment, WildScoreBundle } from "../data/bundle-schema";
 import type { RecoveryCandidateBundle } from "../data/recovery-schema";
+import type { CorrespondenceAuditBundle } from "../data/correspondence-audit-schema.ts";
+import { buildCorrespondenceReviewQueue } from "../data/correspondence-audit-view.ts";
+import type { CorrespondenceAuditReviewState } from "../review/correspondence-audit-state.ts";
 import {
   currentRecoveryLabel,
   type RecoveryReviewState,
@@ -45,7 +48,11 @@ function rounded(value: number): number {
   return Number(value.toFixed(4));
 }
 
-export function trackMetrics(segment: PresenceSegment, fps: number) {
+type TrackMetricSegment = Pick<PresenceSegment, "start_s" | "end_s"> & {
+  geometry: Array<Pick<PresenceSegment["geometry"][number], "frame_index" | "box">>;
+};
+
+export function trackMetrics(segment: TrackMetricSegment, fps: number) {
   const geometry = [...segment.geometry].sort((left, right) => left.frame_index - right.frame_index);
   const points = geometry.map((item) => ({
     frame: item.frame_index,
@@ -91,6 +98,8 @@ export function buildTrackSummaryCsv(
   state: ReviewState,
   recovery?: RecoveryCandidateBundle,
   recoveryState?: RecoveryReviewState,
+  correspondenceAudit?: CorrespondenceAuditBundle,
+  correspondenceAuditState?: CorrespondenceAuditReviewState,
 ): string {
   const rows = bundle.segments.map((segment) => {
     const label = currentReviewedLabel(bundle, state, segment.segment_id);
@@ -129,7 +138,7 @@ export function buildTrackSummaryCsv(
   if (recovery && recoveryState) {
     for (const candidate of recovery.candidates) {
       if (recoveryState.decisions[candidate.candidate_id] !== "accepted") continue;
-      const segment: PresenceSegment = {
+      const segment = {
         segment_id: candidate.candidate_id,
         sam_object_id: `recovery:${candidate.source_prompt}:${candidate.source_object_id}`,
         first_frame: candidate.first_frame,
@@ -176,6 +185,56 @@ export function buildTrackSummaryCsv(
         csvCell(metrics.mean_box_area_px2),
         csvCell(metrics.area_flicker_ratio),
         csvCell(flags.join("|")),
+      ].join(","));
+    }
+  }
+  if (correspondenceAudit && correspondenceAuditState) {
+    const keptCandidateIds = new Set(
+      buildCorrespondenceReviewQueue(correspondenceAudit)
+        .filter(
+          (item) =>
+            item.kind === "candidate_unmatched" &&
+            correspondenceAuditState.decisions[item.id] === "kept",
+        )
+        .map((item) => item.focus_segment_id),
+    );
+    for (const candidate of correspondenceAudit.candidate_segments) {
+      if (!keptCandidateIds.has(candidate.segment_id)) continue;
+      const segment = {
+        segment_id: candidate.segment_id,
+        sam_object_id: `generic-rerun:${candidate.segment_id}`,
+        first_frame: candidate.first_frame,
+        last_frame: candidate.last_frame,
+        start_s: candidate.first_frame / correspondenceAudit.fps,
+        end_s: candidate.last_frame / correspondenceAudit.fps,
+        already_visible_at_start: candidate.first_frame === 0,
+        still_visible_at_end: false,
+        geometry: candidate.geometry,
+      };
+      const metrics = trackMetrics(segment, correspondenceAudit.fps);
+      rows.push([
+        csvCell(bundle.schema_version),
+        csvCell(bundle.clip.clip_id),
+        csvCell(candidate.segment_id),
+        csvCell(segment.sam_object_id),
+        csvCell("generic_rerun_audit"),
+        csvCell("meta_sam_generic_rerun"),
+        csvCell("kept"),
+        csvCell(""),
+        csvCell("unlabelled animal", true),
+        csvCell("unlabelled"),
+        csvCell("not_reviewed"),
+        csvCell(segment.first_frame),
+        csvCell(segment.last_frame),
+        csvCell(metrics.observed_dwell_s),
+        csvCell(metrics.geometry_samples),
+        csvCell(metrics.path_length_px),
+        csvCell(metrics.mean_centroid_motion_px_s),
+        csvCell(metrics.peak_centroid_motion_px_s),
+        csvCell(metrics.straightness_ratio),
+        csvCell(metrics.mean_box_area_px2),
+        csvCell(metrics.area_flicker_ratio),
+        csvCell("box_only_audit_evidence|identity_not_merged|supplemental_generic_rerun"),
       ].join(","));
     }
   }

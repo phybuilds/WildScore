@@ -22,6 +22,11 @@ test("builds a deterministic exception-only review queue without merge claims", 
   ]);
   assert.equal(queue[0].focus_source, "generic_rerun");
   assert.equal(queue[2].focus_source, "saved_analysis");
-  assert.match(queue[1].detail, /no merge was applied/u);
-  assert.doesNotMatch(JSON.stringify(queue), /confirmed identity|automatic merge/iu);
+  assert.equal(queue[0].title, "Unlabelled generic rerun segment");
+  assert.match(queue[0].detail, /does not count as recovered presence/u);
+  assert.equal(queue[1].title, "Possible spatial overlap");
+  assert.match(queue[1].detail, /No identity link or merge was made/u);
+  assert.equal(queue[2].title, "Reviewed segment, not in generic rerun");
+  assert.match(queue[2].detail, /does not invalidate the reviewed segment/u);
+  assert.doesNotMatch(JSON.stringify(queue), /confirmed identity|automatic merge|not recovered|without reviewed match|possible duplicate relationship/iu);
 });

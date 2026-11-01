@@ -27,6 +27,19 @@ test("parses doctor with no options", () => {
   assert.throws(() => parseCliArgs(["doctor", "--check"]), /Unknown doctor option/u);
 });
 
+test("parses a private run viewer without accepting arbitrary paths", () => {
+  assert.deepEqual(parseCliArgs(["view", "run-0123456789abcdef", "--port=5001"]), {
+    mode: "view",
+    runId: "run-0123456789abcdef",
+    port: 5001,
+  });
+  assert.throws(() => parseCliArgs(["view", "../private"]), /requires a run ID/u);
+  assert.throws(
+    () => parseCliArgs(["view", "run-0123456789abcdef", "--api-key=x"]),
+    /never/u,
+  );
+});
+
 test("parses analyse dry-run preflight options", () => {
   assert.deepEqual(parseCliArgs(["analyse", "clip.mp4", "--dry-run"]), {
     mode: "analyse",
@@ -34,6 +47,7 @@ test("parses analyse dry-run preflight options", () => {
     dryRun: true,
     prepareOnly: false,
     samOnly: false,
+    full: false,
     yes: false,
     maxSeconds: 30,
     maxCalls: 8,
@@ -46,6 +60,7 @@ test("parses analyse dry-run preflight options", () => {
       dryRun: true,
       prepareOnly: false,
       samOnly: false,
+      full: false,
       yes: false,
       maxSeconds: 60,
       maxCalls: 4,
@@ -57,6 +72,7 @@ test("parses analyse dry-run preflight options", () => {
     dryRun: false,
     prepareOnly: true,
     samOnly: false,
+    full: false,
     yes: false,
     maxSeconds: 30,
     maxCalls: 8,
@@ -96,6 +112,7 @@ test("requires an explicit confirmation for the bounded live SAM stage", () => {
       dryRun: false,
       prepareOnly: false,
       samOnly: true,
+      full: false,
       yes: true,
       maxSeconds: 20,
       maxCalls: 2,
@@ -127,6 +144,22 @@ test("requires an explicit confirmation for the bounded live SAM stage", () => {
         "--max-calls=4",
       ]),
     /1 to 3/u,
+  );
+});
+
+test("requires explicit confirmation and a total call budget for full analysis", () => {
+  assert.deepEqual(
+    parseCliArgs(["analyse", "clip.mp4", "--full", "--yes", "--max-calls=8"]),
+    {
+      mode: "analyse", videoPath: "clip.mp4", dryRun: false,
+      prepareOnly: false, samOnly: false, full: true, yes: true,
+      maxSeconds: 30, maxCalls: 8,
+    },
+  );
+  assert.throws(() => parseCliArgs(["analyse", "clip.mp4", "--full"]), /requires --yes/u);
+  assert.throws(
+    () => parseCliArgs(["analyse", "clip.mp4", "--full", "--yes", "--max-calls=3"]),
+    /4 to 16/u,
   );
 });
 

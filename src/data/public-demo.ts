@@ -1,4 +1,5 @@
 import type { WildScoreBundle } from "./bundle-schema";
+import type { CorrespondenceAuditBundle } from "./correspondence-audit-schema";
 import type { RecoveryCandidateBundle } from "./recovery-schema";
 
 export function publicDemoBundle(bundle: WildScoreBundle): WildScoreBundle {
@@ -54,5 +55,14 @@ export function publicRecoveryBundle(
       reviewer: "local_reviewer",
       reviewed_at: null,
     })),
+  };
+}
+
+export function publicCorrespondenceAuditBundle(
+  bundle: CorrespondenceAuditBundle,
+): CorrespondenceAuditBundle {
+  return {
+    ...bundle,
+    source_run_id: "generic-rerun-1",
   };
 }

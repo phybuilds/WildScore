@@ -18,8 +18,8 @@ export function buildCorrespondenceReviewQueue(
     items.push({
       id: `reference-missing:${id}`,
       kind: "reference_missing",
-      title: "Reviewed track not recovered",
-      detail: "The generic rerun has no conservative geometry match.",
+      title: "Reviewed segment, not in generic rerun",
+      detail: "No conservative time-and-position correspondence was found. This does not invalidate the reviewed segment.",
       focus_source: "saved_analysis",
       focus_segment_id: id,
       related_segment_ids: [],
@@ -29,8 +29,8 @@ export function buildCorrespondenceReviewQueue(
     items.push({
       id: `candidate-unmatched:${id}`,
       kind: "candidate_unmatched",
-      title: "Rerun track without reviewed match",
-      detail: "Review this box before keeping it as additional evidence.",
+      title: "Unlabelled generic rerun segment",
+      detail: "Review the box only. This separate audit evidence does not count as recovered presence.",
       focus_source: "generic_rerun",
       focus_segment_id: id,
       related_segment_ids: [],
@@ -40,8 +40,8 @@ export function buildCorrespondenceReviewQueue(
     items.push({
       id: `possible-duplicate:${duplicate.candidate_segment_id}`,
       kind: "possible_duplicate",
-      title: "Possible duplicate relationship",
-      detail: "One rerun track overlaps multiple reviewed tracks; no merge was applied.",
+      title: "Possible spatial overlap",
+      detail: "Similar position or time only. No identity link or merge was made.",
       focus_source: "generic_rerun",
       focus_segment_id: duplicate.candidate_segment_id,
       related_segment_ids: [...duplicate.reference_segment_ids],

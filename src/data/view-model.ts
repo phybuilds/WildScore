@@ -69,39 +69,32 @@ export interface GeometryTrailSegment {
   opacity: number;
 }
 
-export function geometryFadingTrail(
+export function geometryProgressiveJourney(
   geometry: Pick<GeometryRecord, "frame_index" | "box">[],
   currentFrame: number,
-  tailFrameCount: number,
 ): GeometryTrailSegment[] {
-  if (!Number.isInteger(currentFrame) || !Number.isInteger(tailFrameCount) || tailFrameCount < 1) {
+  if (!Number.isInteger(currentFrame)) {
     return [];
   }
-  const recent = [...geometry]
-    .filter(
-      (record) =>
-        record.frame_index <= currentFrame &&
-        record.frame_index >= currentFrame - tailFrameCount,
-    )
+  const observed = [...geometry]
+    .filter((record) => record.frame_index <= currentFrame)
     .sort((left, right) => left.frame_index - right.frame_index);
-  if (recent.at(-1)?.frame_index !== currentFrame) return [];
+  if (observed.at(-1)?.frame_index !== currentFrame) return [];
 
-  let contiguousStart = 0;
-  for (let index = 1; index < recent.length; index += 1) {
-    if (recent[index].frame_index - recent[index - 1].frame_index > 1) {
-      contiguousStart = index;
-    }
-  }
-  const points = recent.slice(contiguousStart).map(({ box }) => ({
-    x: (box.left + box.right) / 2,
-    y: (box.top + box.bottom) / 2,
-  }));
-  return points.slice(1).map((point, index) => ({
-    x1: points[index].x,
-    y1: points[index].y,
-    x2: point.x,
-    y2: point.y,
-    opacity: Number((0.12 + (0.76 * (index + 1)) / (points.length - 1)).toFixed(3)),
+  const segments = observed.slice(1).flatMap((record, index) => {
+    const previous = observed[index];
+    if (record.frame_index - previous.frame_index > 1) return [];
+    return [{
+      x1: (previous.box.left + previous.box.right) / 2,
+      y1: (previous.box.top + previous.box.bottom) / 2,
+      x2: (record.box.left + record.box.right) / 2,
+      y2: (record.box.top + record.box.bottom) / 2,
+      opacity: 0,
+    }];
+  });
+  return segments.map((segment, index) => ({
+    ...segment,
+    opacity: Number((0.22 + (0.72 * (index + 1)) / segments.length).toFixed(3)),
   }));
 }
 

@@ -50,6 +50,23 @@ export function parseCliArgs(argv) {
 
   const remaining = [...argv];
   const command = remaining.shift();
+  if (command === "view") {
+    const runId = remaining.shift();
+    if (!runId || !/^run-[0-9a-f]{16}$/u.test(runId)) {
+      throw new Error("view requires a run ID in the form run-<16 lowercase hex characters>.");
+    }
+    let port = 4173;
+    while (remaining.length > 0) {
+      const argument = remaining.shift();
+      rejectApiKeyOption(argument);
+      if (argument === "--port") {
+        port = parseValueOption(remaining, "--port", parsePort);
+      } else if (argument?.startsWith("--port=")) {
+        port = parsePort(argument.slice("--port=".length));
+      } else throw new Error(`Unknown view option: ${argument}`);
+    }
+    return { mode: "view", runId, port };
+  }
   if (command === "recover") {
     const batchPath = remaining.shift();
     if (!batchPath || batchPath.startsWith("-")) {
@@ -88,6 +105,7 @@ export function parseCliArgs(argv) {
     let dryRun = false;
     let prepareOnly = false;
     let samOnly = false;
+    let full = false;
     let yes = false;
     let maxSeconds = DEFAULT_MAX_SECONDS_ANALYSE;
     let maxCalls = DEFAULT_MAX_CALLS_ANALYSE;
@@ -98,6 +116,7 @@ export function parseCliArgs(argv) {
       if (argument === "--dry-run") dryRun = true;
       else if (argument === "--prepare-only") prepareOnly = true;
       else if (argument === "--sam-only") samOnly = true;
+      else if (argument === "--full") full = true;
       else if (argument === "--yes") yes = true;
       else if (argument === "--max-seconds") {
         maxSeconds = parseValueOption(remaining, "--max-seconds", parseMaxSeconds);
@@ -111,11 +130,11 @@ export function parseCliArgs(argv) {
         maxCallsProvided = true;
       } else throw new Error(`Unknown analyse option: ${argument}`);
     }
-    if ([dryRun, prepareOnly, samOnly].filter(Boolean).length > 1) {
-      throw new Error("--dry-run, --prepare-only, and --sam-only are mutually exclusive.");
+    if ([dryRun, prepareOnly, samOnly, full].filter(Boolean).length > 1) {
+      throw new Error("--dry-run, --prepare-only, --sam-only, and --full are mutually exclusive.");
     }
-    if (yes && !samOnly) {
-      throw new Error("--yes is accepted only with --sam-only.");
+    if (yes && !samOnly && !full) {
+      throw new Error("--yes is accepted only with --sam-only or --full.");
     }
     if (samOnly && !yes) {
       throw new Error("Live SAM analysis requires --yes after reviewing the dry-run plan.");
@@ -124,8 +143,14 @@ export function parseCliArgs(argv) {
       throw new Error("SAM-only --max-calls must be an integer from 1 to 3.");
     }
     if (samOnly && !maxCallsProvided) maxCalls = 3;
-    if (!dryRun && !prepareOnly && !samOnly) {
-      throw new Error("Choose --dry-run, --prepare-only, or --sam-only --yes.");
+    if (full && !yes) {
+      throw new Error("Full live analysis requires --yes after reviewing the dry-run plan.");
+    }
+    if (full && maxCalls < 4) {
+      throw new Error("Full live analysis requires --max-calls from 4 to 16.");
+    }
+    if (!dryRun && !prepareOnly && !samOnly && !full) {
+      throw new Error("Choose --dry-run, --prepare-only, --sam-only --yes, or --full --yes.");
     }
     return {
       mode: "analyse",
@@ -133,6 +158,7 @@ export function parseCliArgs(argv) {
       dryRun,
       prepareOnly,
       samOnly,
+      full,
       yes,
       maxSeconds,
       maxCalls,
@@ -140,7 +166,7 @@ export function parseCliArgs(argv) {
   }
   if (command !== "--demo" && command !== "demo") {
     throw new Error(
-      "Use `wildscore --demo`, `wildscore doctor`, `wildscore analyse <video> --dry-run`, or `wildscore recover <batch.json> --dry-run`.",
+      "Use `wildscore --demo`, `wildscore doctor`, `wildscore analyse <video> --dry-run`, `wildscore view <run-id>`, or `wildscore recover <batch.json> --dry-run`.",
     );
   }
 

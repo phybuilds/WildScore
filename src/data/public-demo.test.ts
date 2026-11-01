@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { WildScoreBundle } from "./bundle-schema.ts";
-import { publicDemoBundle, publicRecoveryBundle } from "./public-demo.ts";
+import type { CorrespondenceAuditBundle } from "./correspondence-audit-schema.ts";
+import {
+  publicCorrespondenceAuditBundle,
+  publicDemoBundle,
+  publicRecoveryBundle,
+} from "./public-demo.ts";
 import type { RecoveryCandidateBundle } from "./recovery-schema.ts";
 
 test("browser bundle omits internal hashes and exact run metadata", () => {
@@ -37,4 +42,13 @@ test("recovery projection replaces internal source runs", () => {
   const text = JSON.stringify(projected);
   assert.doesNotMatch(text, /internal-|founder|timestamp/u);
   assert.equal(projected.candidates[0].source_run_id, "targeted-antelope-run-1");
+});
+
+test("generic rerun audit projection replaces the internal run identifier", () => {
+  const bundle = {
+    source_run_id: "run-f880d42188a9d193",
+  } as CorrespondenceAuditBundle;
+  const projected = publicCorrespondenceAuditBundle(bundle);
+  assert.equal(projected.source_run_id, "generic-rerun-1");
+  assert.doesNotMatch(JSON.stringify(projected), /run-f880d42188a9d193/u);
 });

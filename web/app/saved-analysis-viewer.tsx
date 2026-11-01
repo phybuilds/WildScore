@@ -15,8 +15,14 @@ import { planCueWindow } from "../../src/audio/scheduler";
 import type { CandidateEvent, WildScoreBundle } from "../../src/data/bundle-schema";
 import {
   loadDemoBundle,
+  loadCorrespondenceAuditBundle,
   loadRecoveryCandidateBundle,
 } from "../../src/data/load-demo";
+import type { CorrespondenceAuditBundle } from "../../src/data/correspondence-audit-schema";
+import {
+  buildCorrespondenceReviewQueue,
+  type CorrespondenceReviewItem,
+} from "../../src/data/correspondence-audit-view";
 import type {
   RecoveryCandidate,
   RecoveryCandidateBundle,
@@ -27,7 +33,7 @@ import {
   formatTime,
   frameAtTime,
   geometryAnchorTime,
-  geometryFadingTrail,
+  geometryProgressiveJourney,
   humanizeIdentifier,
   segmentStartTime,
   type VisibleGeometry,
@@ -35,6 +41,7 @@ import {
 import { buildEventCsv } from "../../src/export/event-csv";
 import { buildTrackSummaryCsv } from "../../src/export/track-summary-csv";
 import { buildRecoveryCsv } from "../../src/export/recovery-csv";
+import { buildCorrespondenceAuditCsv } from "../../src/export/correspondence-audit-csv";
 import { buildDevelopmentEvidenceSummary } from "../../src/evaluation/evidence-summary";
 import {
   containedVideoDragToMediaBox,
@@ -57,6 +64,14 @@ import {
   type ReviewState,
 } from "../../src/review/review-state";
 import {
+  correspondenceAuditBundleKey,
+  correspondenceAuditReviewReducer,
+  createInitialCorrespondenceAuditReviewState,
+  reviewedCorrespondenceAuditCount,
+  type CorrespondenceAuditDecision,
+  type CorrespondenceAuditReviewState,
+} from "../../src/review/correspondence-audit-state";
+import {
   createInitialRecoveryReviewState,
   currentRecoveryLabel,
   recoveryBundleKey,
@@ -77,6 +92,7 @@ type LoadState =
       status: "ready";
       bundle: WildScoreBundle;
       recovery: RecoveryCandidateBundle;
+      correspondenceAudit: CorrespondenceAuditBundle | null;
     };
 
 type AudioScope =
@@ -84,6 +100,11 @@ type AudioScope =
   | { kind: "segment"; segmentId: string }
   | { kind: "event"; eventId: string }
   | { kind: "silent" };
+
+type DisplayGeometry = Pick<
+  VisibleGeometry,
+  "segment_id" | "frame_index" | "box"
+> & { layer: "primary" | "targeted_recovery" | "generic_rerun_audit" };
 
 function eventTitle(event: CandidateEvent): string {
   return event.event_kind === "appearance"
@@ -101,6 +122,11 @@ const EMPTY_RECOVERY_REVIEW_STATE: RecoveryReviewState = {
   bundle_key: "",
   decisions: {},
   label_decisions: {},
+};
+
+const EMPTY_CORRESPONDENCE_AUDIT_REVIEW_STATE: CorrespondenceAuditReviewState = {
+  bundle_key: "",
+  decisions: {},
 };
 
 function reviewChangeCount(
@@ -152,6 +178,10 @@ function missingAnimalStorageKey(bundle: WildScoreBundle): string {
   return `wildscore:missing-animals:${bundleIdentityKey(bundle)}`;
 }
 
+function correspondenceAuditStorageKey(bundle: CorrespondenceAuditBundle): string {
+  return `wildscore:correspondence-audit:${correspondenceAuditBundleKey(bundle)}`;
+}
+
 export default function SavedAnalysisViewer() {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [analysisVisible, setAnalysisVisible] = useState(false);
@@ -161,7 +191,12 @@ export default function SavedAnalysisViewer() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   const [selectedRecoveryId, setSelectedRecoveryId] = useState<string | null>(null);
+  const [selectedAuditItemId, setSelectedAuditItemId] = useState<string | null>(null);
+  const [auditFilter, setAuditFilter] = useState<CorrespondenceReviewItem["kind"]>(
+    "reference_missing",
+  );
   const [showAllSegments, setShowAllSegments] = useState(false);
+  const [showReviewedAdditions, setShowReviewedAdditions] = useState(true);
   const [draftLabel, setDraftLabel] = useState("");
   const [bulkLabel, setBulkLabel] = useState("baboon");
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(
@@ -195,10 +230,16 @@ export default function SavedAnalysisViewer() {
     recoveryReviewReducer,
     EMPTY_RECOVERY_REVIEW_STATE,
   );
+  const [correspondenceAuditReviewState, dispatchCorrespondenceAuditReview] =
+    useReducer(
+      correspondenceAuditReviewReducer,
+      EMPTY_CORRESPONDENCE_AUDIT_REVIEW_STATE,
+    );
   const videoRef = useRef<HTMLVideoElement>(null);
   const missingAnimalDragStartRef = useRef<{ x: number; y: number } | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
   const recoveryMenuRef = useRef<HTMLDetailsElement>(null);
+  const auditMenuRef = useRef<HTMLDetailsElement>(null);
   const timelineListRef = useRef<HTMLDivElement>(null);
   const timelineRowRefs = useRef(new Map<string, HTMLDivElement>());
   const labelInputRef = useRef<HTMLInputElement>(null);
@@ -216,8 +257,9 @@ export default function SavedAnalysisViewer() {
     Promise.all([
       loadDemoBundle(controller.signal),
       loadRecoveryCandidateBundle(controller.signal),
+      loadCorrespondenceAuditBundle(controller.signal),
     ])
-      .then(([bundle, recovery]) => {
+      .then(([bundle, recovery, correspondenceAudit]) => {
         let storedReviews: unknown = null;
         try {
           const stored = window.localStorage.getItem(reviewStorageKey(bundle));
@@ -249,7 +291,23 @@ export default function SavedAnalysisViewer() {
         } catch {
           dispatchRecoveryReview({ type: "restore_labels", bundle: recovery, labels: null });
         }
-        setLoadState({ status: "ready", bundle, recovery });
+        if (correspondenceAudit) {
+          let storedAuditDecisions: unknown = null;
+          try {
+            const stored = window.localStorage.getItem(
+              correspondenceAuditStorageKey(correspondenceAudit),
+            );
+            storedAuditDecisions = stored ? JSON.parse(stored) : null;
+          } catch {
+            storedAuditDecisions = null;
+          }
+          dispatchCorrespondenceAuditReview({
+            type: "restore",
+            bundle: correspondenceAudit,
+            decisions: storedAuditDecisions,
+          });
+        }
+        setLoadState({ status: "ready", bundle, recovery, correspondenceAudit });
         try {
           const stored = window.localStorage.getItem(missingAnimalStorageKey(bundle));
           setMissingAnimalReports(
@@ -281,6 +339,17 @@ export default function SavedAnalysisViewer() {
 
   const bundle = loadState.status === "ready" ? loadState.bundle : null;
   const recovery = loadState.status === "ready" ? loadState.recovery : null;
+  const correspondenceAudit =
+    loadState.status === "ready" ? loadState.correspondenceAudit : null;
+  const correspondenceQueue = useMemo(
+    () => correspondenceAudit
+      ? buildCorrespondenceReviewQueue(correspondenceAudit)
+      : [],
+    [correspondenceAudit],
+  );
+  const selectedAuditItem = correspondenceQueue.find(
+    (item) => item.id === selectedAuditItemId,
+  ) ?? null;
   const activeReviewState = useMemo(
     () =>
       bundle && reviewState.bundle_key !== bundleKey(bundle)
@@ -312,6 +381,22 @@ export default function SavedAnalysisViewer() {
     }
     return index;
   }, [recovery]);
+  const auditGeometryByFrame = useMemo<Map<number, DisplayGeometry[]>>(() => {
+    const index = new Map<number, DisplayGeometry[]>();
+    if (!correspondenceAudit) return index;
+    for (const candidate of correspondenceAudit.candidate_segments) {
+      for (const geometry of candidate.geometry) {
+        const records = index.get(geometry.frame_index) ?? [];
+        records.push({
+          ...geometry,
+          segment_id: candidate.segment_id,
+          layer: "generic_rerun_audit",
+        });
+        index.set(geometry.frame_index, records);
+      }
+    }
+    return index;
+  }, [correspondenceAudit]);
   const activeRecoveryReviewState = useMemo(
     () =>
       recovery && recoveryReviewState.bundle_key !== recoveryBundleKey(recovery)
@@ -319,10 +404,38 @@ export default function SavedAnalysisViewer() {
         : recoveryReviewState,
     [recovery, recoveryReviewState],
   );
+  const activeCorrespondenceAuditReviewState = useMemo(
+    () =>
+      correspondenceAudit &&
+      correspondenceAuditReviewState.bundle_key !==
+        correspondenceAuditBundleKey(correspondenceAudit)
+        ? createInitialCorrespondenceAuditReviewState(correspondenceAudit)
+        : correspondenceAuditReviewState,
+    [correspondenceAudit, correspondenceAuditReviewState],
+  );
   const acceptedRecoveryCandidates = recovery?.candidates.filter(
     (candidate) =>
       activeRecoveryReviewState.decisions[candidate.candidate_id] === "accepted",
   ) ?? [];
+  const keptAuditAdditions = useMemo(() => {
+    if (!correspondenceAudit) return [];
+    return correspondenceQueue
+      .filter(
+        (item) =>
+          item.kind === "candidate_unmatched" &&
+          activeCorrespondenceAuditReviewState.decisions[item.id] === "kept",
+      )
+      .flatMap((item) => {
+        const candidate = correspondenceAudit.candidate_segments.find(
+          (segment) => segment.segment_id === item.focus_segment_id,
+        );
+        return candidate ? [{ item, candidate }] : [];
+      });
+  }, [
+    activeCorrespondenceAuditReviewState,
+    correspondenceAudit,
+    correspondenceQueue,
+  ]);
   const selectedRecovery = recovery?.candidates.find(
     (candidate) => candidate.candidate_id === selectedRecoveryId,
   );
@@ -343,19 +456,56 @@ export default function SavedAnalysisViewer() {
         recovery.processed_frame_count,
       )
     : 0;
-  const currentFrame = selectedRecovery ? recoveryFrame : baseFrame;
-  const visibleGeometry = selectedRecovery
-    ? recoveryGeometryByFrame.get(recoveryFrame) ?? []
-    : geometryByFrame.get(baseFrame) ?? [];
+  const auditFrame = correspondenceAudit
+    ? Math.max(0, Math.round(currentTime * correspondenceAudit.fps))
+    : 0;
+  const auditUsesGenericGeometry =
+    selectedAuditItem?.focus_source === "generic_rerun";
+  const currentFrame = selectedAuditItem
+    ? auditUsesGenericGeometry ? auditFrame : baseFrame
+    : selectedRecovery ? recoveryFrame : baseFrame;
+  const primaryVisibleGeometry: DisplayGeometry[] = (
+    geometryByFrame.get(baseFrame) ?? []
+  ).map((geometry) => ({ ...geometry, layer: "primary" }));
+  const recoveryVisibleGeometry: DisplayGeometry[] = (
+    recoveryGeometryByFrame.get(recoveryFrame) ?? []
+  ).map((geometry) => ({ ...geometry, layer: "targeted_recovery" }));
+  const visibleGeometry = selectedAuditItem
+    ? auditUsesGenericGeometry
+      ? auditGeometryByFrame.get(auditFrame) ?? []
+      : primaryVisibleGeometry
+    : selectedRecovery
+      ? recoveryVisibleGeometry
+      : primaryVisibleGeometry;
   const selectedGeometry = visibleGeometry.filter(
     (geometry) =>
       geometry.segment_id ===
-      (selectedRecovery?.candidate_id ?? selectedSegmentId),
+      (selectedAuditItem?.focus_segment_id ??
+        selectedRecovery?.candidate_id ??
+        selectedSegmentId),
   );
-  const displayedGeometry = selectedRecovery
+  const acceptedRecoveryIds = new Set(
+    acceptedRecoveryCandidates.map((candidate) => candidate.candidate_id),
+  );
+  const keptAuditAdditionIds = new Set(
+    keptAuditAdditions.map(({ candidate }) => candidate.segment_id),
+  );
+  const reviewedAdditionGeometry = showReviewedAdditions
+    ? [
+        ...recoveryVisibleGeometry.filter((geometry) =>
+          acceptedRecoveryIds.has(geometry.segment_id),
+        ),
+        ...(auditGeometryByFrame.get(auditFrame) ?? []).filter((geometry) =>
+          keptAuditAdditionIds.has(geometry.segment_id),
+        ),
+      ]
+    : [];
+  const displayedGeometry = selectedAuditItem
+    ? selectedGeometry
+    : selectedRecovery
     ? selectedGeometry
     : showAllSegments
-      ? visibleGeometry
+      ? [...visibleGeometry, ...reviewedAdditionGeometry]
       : selectedGeometry;
   const selectedEvent = bundle?.events.find(
     (event) => event.event_id === selectedEventId,
@@ -363,20 +513,49 @@ export default function SavedAnalysisViewer() {
   const selectedSegment = bundle?.segments.find(
     (segment) => segment.segment_id === selectedSegmentId,
   );
-  const selectedTrackTrail = selectedGeometry.length > 0
-    ? geometryFadingTrail(
-        selectedRecovery?.geometry ?? selectedSegment?.geometry ?? [],
+  const selectedAuditCandidate = auditUsesGenericGeometry
+    ? correspondenceAudit?.candidate_segments.find(
+        (candidate) => candidate.segment_id === selectedAuditItem?.focus_segment_id,
+      )
+    : null;
+  const selectedAuditReference = selectedAuditItem?.focus_source === "saved_analysis"
+    ? bundle?.segments.find(
+        (segment) => segment.segment_id === selectedAuditItem.focus_segment_id,
+      )
+    : null;
+  const selectedAuditStart = selectedAuditCandidate && correspondenceAudit
+    ? selectedAuditCandidate.first_frame / correspondenceAudit.fps
+    : selectedAuditReference && bundle
+      ? segmentStartTime(selectedAuditReference, bundle.clip.processed_fps)
+      : 0;
+  const selectedAuditEnd = selectedAuditCandidate && correspondenceAudit
+    ? selectedAuditCandidate.last_frame / correspondenceAudit.fps
+    : selectedAuditReference && bundle
+      ? selectedAuditReference.last_frame / bundle.clip.processed_fps
+      : selectedAuditStart;
+  const selectedAuditDecision = selectedAuditItem
+    ? activeCorrespondenceAuditReviewState.decisions[selectedAuditItem.id] ?? "pending"
+    : "pending";
+  const selectedTrackJourney = selectedGeometry.length > 0
+    ? geometryProgressiveJourney(
+        selectedAuditCandidate?.geometry ??
+          selectedAuditReference?.geometry ??
+          selectedRecovery?.geometry ??
+          selectedSegment?.geometry ??
+          [],
         currentFrame,
-        Math.max(
-          2,
-          Math.round(
-            (selectedRecovery
-              ? recovery?.processed_fps ?? 10
-              : bundle?.clip.processed_fps ?? 10) * 1.25,
-          ),
-        ),
       )
     : [];
+  const selectedFocusBox = selectedGeometry[0]?.box;
+  const focusPadding = selectedFocusBox
+    ? Math.max(
+        10,
+        Math.max(
+          selectedFocusBox.right - selectedFocusBox.left,
+          selectedFocusBox.bottom - selectedFocusBox.top,
+        ) * 0.16,
+      )
+    : 0;
   const selectedRecoveryLabel = recovery && selectedRecovery
     ? currentRecoveryLabel(
         recovery,
@@ -498,6 +677,24 @@ export default function SavedAnalysisViewer() {
       );
     } catch {}
   }, [recovery, recoveryReviewState]);
+
+  useEffect(() => {
+    if (
+      !correspondenceAudit ||
+      correspondenceAuditReviewState.bundle_key !==
+        correspondenceAuditBundleKey(correspondenceAudit)
+    ) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        correspondenceAuditStorageKey(correspondenceAudit),
+        JSON.stringify(correspondenceAuditReviewState.decisions),
+      );
+    } catch {
+      // Audit review remains usable in memory when browser storage is unavailable.
+    }
+  }, [correspondenceAudit, correspondenceAuditReviewState]);
 
   useEffect(() => {
     setRecoveryDraftLabel(selectedRecoveryProposal?.label_id ?? "unknown");
@@ -723,6 +920,7 @@ export default function SavedAnalysisViewer() {
     cancelAudioSchedule();
     resetSuppressedCues();
     setSelectedRecoveryId(null);
+    setSelectedAuditItemId(null);
     setSelectedEventId(null);
     setSelectedSegmentId(null);
     setShowAllSegments(true);
@@ -817,10 +1015,13 @@ export default function SavedAnalysisViewer() {
   }
 
   function selectEvent(event: CandidateEvent) {
+    setSavedReplayPhase("complete");
     setSelectedRecoveryId(null);
+    setSelectedAuditItemId(null);
     setSelectedEventId(event.event_id);
     setSelectedSegmentId(event.segment_id);
     setShowAllSegments(false);
+    setShowSelectedTrail(true);
     setAnalysisVisible(true);
     setReplayEnd(null);
     audioScopeRef.current = { kind: "segment", segmentId: event.segment_id };
@@ -851,12 +1052,15 @@ export default function SavedAnalysisViewer() {
       (candidate) => candidate.segment_id === segmentId,
     );
     if (!segment) return;
+    setSavedReplayPhase("complete");
     setSelectedRecoveryId(null);
+    setSelectedAuditItemId(null);
     const firstEvent = bundle.events
       .filter((event) => event.segment_id === segmentId)
       .sort((left, right) => left.start_s - right.start_s)[0];
     setSelectedSegmentId(segmentId);
     setShowAllSegments(false);
+    setShowSelectedTrail(true);
     setSelectedEventId(firstEvent?.event_id ?? null);
     setAnalysisVisible(true);
     setReplayEnd(null);
@@ -909,10 +1113,13 @@ export default function SavedAnalysisViewer() {
   }
 
   function selectRecoveryCandidate(candidate: RecoveryCandidate) {
+    setSavedReplayPhase("complete");
+    setSelectedAuditItemId(null);
     setSelectedRecoveryId(candidate.candidate_id);
     setSelectedEventId(null);
     setSelectedSegmentId(null);
     setShowAllSegments(false);
+    setShowSelectedTrail(true);
     setAnalysisVisible(true);
     setReplayEnd(null);
     audioScopeRef.current = { kind: "silent" };
@@ -933,6 +1140,87 @@ export default function SavedAnalysisViewer() {
     }
     if (recoveryMenuRef.current) recoveryMenuRef.current.open = false;
     focusWorkbench();
+  }
+
+  function clearCorrespondenceAuditSelection() {
+    setSelectedAuditItemId(null);
+    audioScopeRef.current = selectedRecovery
+      ? { kind: "silent" }
+      : selectedSegmentId
+        ? { kind: "segment", segmentId: selectedSegmentId }
+        : { kind: "all" };
+    setAnnouncement("Generic rerun audit closed. Normal evidence view restored.");
+  }
+
+  function selectCorrespondenceAuditItem(item: CorrespondenceReviewItem) {
+    if (!bundle || !correspondenceAudit) return;
+    const candidate = item.focus_source === "generic_rerun"
+      ? correspondenceAudit.candidate_segments.find(
+          (segment) => segment.segment_id === item.focus_segment_id,
+        )
+      : null;
+    const reference = item.focus_source === "saved_analysis"
+      ? bundle.segments.find(
+          (segment) => segment.segment_id === item.focus_segment_id,
+        )
+      : null;
+    if (!candidate && !reference) return;
+
+    setSavedReplayPhase("complete");
+    setSelectedAuditItemId(item.id);
+    setShowAllSegments(false);
+    setShowSelectedTrail(false);
+    setAnalysisVisible(true);
+    setReplayEnd(null);
+    audioScopeRef.current = { kind: "silent" };
+    const video = videoRef.current;
+    if (video) {
+      cancelAudioSchedule();
+      resetSuppressedCues();
+      video.pause();
+      video.currentTime = candidate
+        ? geometryAnchorTime(
+            candidate.geometry,
+            correspondenceAudit.fps,
+            candidate.first_frame / correspondenceAudit.fps,
+          )
+        : geometryAnchorTime(
+            reference?.geometry ?? [],
+            bundle.clip.processed_fps,
+            reference ? segmentStartTime(reference, bundle.clip.processed_fps) : 0,
+          );
+      setCurrentTime(video.currentTime);
+    }
+    if (auditMenuRef.current) auditMenuRef.current.open = false;
+    setAnnouncement(`${item.title}. Audit evidence only; choose keep, dismiss, or can’t tell.`);
+    focusWorkbench();
+  }
+
+  function decideSelectedCorrespondenceAudit(
+    decision: Exclude<CorrespondenceAuditDecision, "pending">,
+  ) {
+    if (!selectedAuditItem) return;
+    dispatchCorrespondenceAuditReview({
+      type: "decide",
+      item_id: selectedAuditItem.id,
+      decision,
+    });
+    const nextStep =
+      decision === "kept" && selectedAuditItem.kind === "candidate_unmatched"
+        ? " Box-only evidence queued for a targeted recovery run."
+        : "";
+    setAnnouncement(`Audit finding ${decision}.${nextStep}`);
+  }
+
+  function navigateCorrespondenceAudit(direction: -1 | 1) {
+    const items = correspondenceQueue.filter((item) => item.kind === auditFilter);
+    if (items.length === 0) return;
+    const currentIndex = items.findIndex((item) => item.id === selectedAuditItemId);
+    const nextIndex = Math.min(
+      items.length - 1,
+      Math.max(0, currentIndex + direction),
+    );
+    selectCorrespondenceAuditItem(items[nextIndex]);
   }
 
   function replaySelectedEvent() {
@@ -1135,6 +1423,8 @@ export default function SavedAnalysisViewer() {
       activeReviewState,
       recovery ?? undefined,
       recovery ? activeRecoveryReviewState : undefined,
+      correspondenceAudit ?? undefined,
+      correspondenceAudit ? activeCorrespondenceAuditReviewState : undefined,
     )], {
       type: "text/csv;charset=utf-8",
     });
@@ -1146,7 +1436,7 @@ export default function SavedAnalysisViewer() {
     document.body.append(link);
     link.click();
     link.remove();
-    setAnnouncement("Track summary CSV downloaded with accepted recovery provenance and pixel-space movement metrics.");
+    setAnnouncement("Reviewed tracks CSV downloaded with primary tracks, accepted recovery tracks, kept rerun additions, and explicit provenance.");
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
@@ -1166,11 +1456,35 @@ export default function SavedAnalysisViewer() {
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
+  function downloadCorrespondenceAuditCsv() {
+    if (!correspondenceAudit) return;
+    const blob = new Blob(
+      [
+        buildCorrespondenceAuditCsv(
+          correspondenceAudit,
+          activeCorrespondenceAuditReviewState,
+        ),
+      ],
+      { type: "text/csv;charset=utf-8" },
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${correspondenceAudit.clip_id}-generic-rerun-audit.csv`;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setAnnouncement("Generic rerun audit CSV downloaded.");
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
   function beginMissingAnimalReport() {
     const video = videoRef.current;
     if (video) video.pause();
     cancelAudioSchedule();
     setReplayEnd(null);
+    setSelectedAuditItemId(null);
     setMissingAnimalBox(null);
     setMissingAnimalError("");
     setMissingAnimalMode(true);
@@ -1268,6 +1582,12 @@ export default function SavedAnalysisViewer() {
     setAnnouncement("Recovery reviews restored to the saved analysis.");
   }
 
+  function resetCorrespondenceAuditReviews() {
+    if (!correspondenceAudit) return;
+    dispatchCorrespondenceAuditReview({ type: "reset", bundle: correspondenceAudit });
+    setAnnouncement("Generic rerun audit decisions reset.");
+  }
+
   useEffect(() => {
     if (!bundle) return;
     function onKeyDown(event: KeyboardEvent) {
@@ -1277,6 +1597,20 @@ export default function SavedAnalysisViewer() {
         target instanceof HTMLSelectElement ||
         target instanceof HTMLTextAreaElement
       ) {
+        return;
+      }
+      if (selectedAuditItem) {
+        const auditKey = event.key.toLowerCase();
+        if (event.key === "Escape") {
+          if (auditMenuRef.current) auditMenuRef.current.open = false;
+          clearCorrespondenceAuditSelection();
+        } else if (auditKey === "j") navigateCorrespondenceAudit(1);
+        else if (auditKey === "k") navigateCorrespondenceAudit(-1);
+        else if (auditKey === "a") decideSelectedCorrespondenceAudit("kept");
+        else if (auditKey === "r") decideSelectedCorrespondenceAudit("dismissed");
+        else if (auditKey === "u") decideSelectedCorrespondenceAudit("uncertain");
+        else return;
+        event.preventDefault();
         return;
       }
       const key = event.key.toLowerCase();
@@ -1393,6 +1727,9 @@ export default function SavedAnalysisViewer() {
         </span>
         <span>
           <strong>Recovery</strong> accepted {acceptedRecoveryCandidates.length}
+        </span>
+        <span>
+          <strong>Rerun additions</strong> kept {keptAuditAdditions.length}
         </span>
       </div>
       <div className="timeline-list" ref={timelineListRef}>
@@ -1511,6 +1848,46 @@ export default function SavedAnalysisViewer() {
             </div>
           );
         })}
+        {keptAuditAdditions.map(({ item, candidate }) => {
+          const duration = readyBundle.clip.processed_duration_s;
+          const start = candidate.first_frame / correspondenceAudit!.fps;
+          const end = candidate.last_frame / correspondenceAudit!.fps;
+          const isActive = selectedAuditItemId === item.id;
+          const isDimmed =
+            !showAllSegments &&
+            Boolean(selectedSegmentId || selectedRecoveryId || selectedAuditItemId) &&
+            !isActive;
+          return (
+            <div
+              className={`timeline-row is-audit-addition ${isActive ? "is-active" : ""} ${
+                isDimmed ? "is-dimmed" : ""
+              }`}
+              key={item.id}
+            >
+              <div className="timeline-label">
+                <strong>Unlabelled rerun</strong>
+                <span>{candidate.segment_id} · kept audit</span>
+              </div>
+              <div className="timeline-track">
+                <button
+                  className="presence-bar audit-addition-presence-bar"
+                  type="button"
+                  style={{
+                    left: `${(start / duration) * 100}%`,
+                    width: `${Math.max(0.6, ((end - start) / duration) * 100)}%`,
+                  }}
+                  aria-label={`Kept generic rerun track ${candidate.segment_id}, ${formatTime(start)} to ${formatTime(end)}`}
+                  aria-pressed={isActive}
+                  onClick={() => selectCorrespondenceAuditItem(item)}
+                />
+                <span
+                  className="timeline-playhead"
+                  style={{ left: `${Math.min(100, (currentTime / duration) * 100)}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
       <div className="timeline-legend">
         <span><i className="legend-presence" /> Saved presence</span>
@@ -1519,17 +1896,27 @@ export default function SavedAnalysisViewer() {
         <span><i className="legend-open" /> Unreviewed</span>
         <span><i className="legend-uncertain" /> Can’t tell</span>
         <span><i className="legend-recovery" /> Accepted recovery track</span>
+        <span><i className="legend-audit-addition" /> Kept rerun addition</span>
       </div>
       <p className="timeline-note">
         Rows are observed segments, not persistent animal identities. Focused review dims
         other tracks without removing them. Accepted recovery rows are supplemental presence
-        evidence; they do not create events or merge animal identities.
+        evidence. Kept rerun-only rows are box-only additions. Neither layer creates
+        events or merges animal identities.
       </p>
     </section>
   );
 
   const recoveryAuditMenu = (
-    <details className="recovery-menu" ref={recoveryMenuRef}>
+    <details
+      className="recovery-menu"
+      ref={recoveryMenuRef}
+      onToggle={(event) => {
+        if (event.currentTarget.open && auditMenuRef.current) {
+          auditMenuRef.current.open = false;
+        }
+      }}
+    >
       <summary>
         <span>
           <strong>Recovery candidates</strong>
@@ -1543,8 +1930,9 @@ export default function SavedAnalysisViewer() {
       <div className="recovery-menu-panel">
         <p>
           These candidates came from separate targeted SAM runs after the generic
-          pass missed animals. Accepted tracks appear as supplemental timeline rows
-          and in the track summary export; they do not create events or merge animal identities.
+          pass missed animals. Accepting a track adds it to the Reviewed additions
+          video layer, the timeline, and the reviewed-track CSV. It does not create
+          events or merge animal identities.
         </p>
         <div className="recovery-grid">
           {loadState.recovery.candidates.map((candidate) => {
@@ -1582,6 +1970,121 @@ export default function SavedAnalysisViewer() {
       </div>
     </details>
   );
+
+  const auditCounts = correspondenceQueue.reduce(
+    (counts, item) => {
+      counts[item.kind] += 1;
+      return counts;
+    },
+    { reference_missing: 0, candidate_unmatched: 0, possible_duplicate: 0 },
+  );
+  const auditFilterLabels: Array<{
+    kind: CorrespondenceReviewItem["kind"];
+    label: string;
+  }> = [
+    { kind: "reference_missing", label: "Reviewed, not in rerun" },
+    { kind: "candidate_unmatched", label: "Rerun only" },
+    { kind: "possible_duplicate", label: "Possible overlap" },
+  ];
+  const correspondenceAuditMenu = correspondenceAudit && correspondenceQueue.length > 0 ? (
+    <details
+      className="correspondence-audit-menu"
+      ref={auditMenuRef}
+      onToggle={(event) => {
+        if (event.currentTarget.open) {
+          if (recoveryMenuRef.current) recoveryMenuRef.current.open = false;
+        }
+      }}
+    >
+      <summary>
+        <span>
+          <strong>Generic SAM rerun audit</strong>
+          <small>Compare runs · decisions stay separate</small>
+        </span>
+        <span className="audit-count">
+          {reviewedCorrespondenceAuditCount(activeCorrespondenceAuditReviewState)}/
+          {correspondenceQueue.length}
+        </span>
+      </summary>
+      <div className="correspondence-audit-panel">
+        <div className="audit-tabs" role="tablist" aria-label="Generic rerun audit filters">
+          {auditFilterLabels.map((filter) => (
+            <button
+              type="button"
+              role="tab"
+              aria-label={`${filter.label} (${auditCounts[filter.kind]})`}
+              aria-selected={auditFilter === filter.kind}
+              className={auditFilter === filter.kind ? "is-active" : ""}
+              key={filter.kind}
+              onClick={() => setAuditFilter(filter.kind)}
+            >
+              {filter.label} ({auditCounts[filter.kind]})
+            </button>
+          ))}
+        </div>
+        <div className="correspondence-audit-list">
+          {correspondenceQueue
+            .filter((item) => item.kind === auditFilter)
+            .map((item) => {
+              const candidate = item.focus_source === "generic_rerun"
+                ? correspondenceAudit.candidate_segments.find(
+                    (segment) => segment.segment_id === item.focus_segment_id,
+                  )
+                : null;
+              const reference = item.focus_source === "saved_analysis"
+                ? readyBundle.segments.find(
+                    (segment) => segment.segment_id === item.focus_segment_id,
+                  )
+                : null;
+              const start = candidate
+                ? candidate.first_frame / correspondenceAudit.fps
+                : reference?.first_frame !== undefined
+                  ? reference.first_frame / readyBundle.clip.processed_fps
+                  : 0;
+              const end = candidate
+                ? candidate.last_frame / correspondenceAudit.fps
+                : reference?.last_frame !== undefined
+                  ? reference.last_frame / readyBundle.clip.processed_fps
+                  : start;
+              const decision =
+                activeCorrespondenceAuditReviewState.decisions[item.id] ?? "pending";
+              return (
+                <button
+                  className={`correspondence-audit-item ${decision} ${
+                    selectedAuditItemId === item.id ? "is-selected" : ""
+                  }`}
+                  key={item.id}
+                  type="button"
+                  aria-label={`${item.title}, ${item.focus_segment_id}, ${formatTime(start)} to ${formatTime(end)}. ${item.detail}`}
+                  aria-pressed={selectedAuditItemId === item.id}
+                  onClick={() => selectCorrespondenceAuditItem(item)}
+                >
+                  <span>{item.focus_source === "generic_rerun" ? "Generic rerun" : "Reviewed segment"}</span>
+                  <strong>{item.title}</strong>
+                  <small>
+                    {item.focus_segment_id} · {formatTime(start)}–{formatTime(end)} · {decision}
+                  </small>
+                  <small>{item.detail}</small>
+                </button>
+              );
+            })}
+        </div>
+        <p className="audit-disclaimer">
+          Keeping a rerun-only item adds its box-only track to Reviewed additions and
+          the reviewed-track CSV. Possible-overlap and missing-reference decisions remain
+          audit findings only. Nothing here merges tracks or confirms identity or species.
+        </p>
+        <div className="audit-menu-actions">
+          <button type="button" onClick={resetCorrespondenceAuditReviews}>
+            Reset decisions
+          </button>
+          <button type="button" onClick={downloadCorrespondenceAuditCsv}>
+            Download audit CSV
+          </button>
+        </div>
+      </div>
+    </details>
+  ) : null;
 
   return (
     <>
@@ -1684,7 +2187,44 @@ export default function SavedAnalysisViewer() {
                 preserveAspectRatio="xMidYMid meet"
                 aria-hidden="true"
               >
-                {showSelectedTrail && selectedTrackTrail.map((trail, index) => (
+                <defs>
+                  <filter id="selected-subject-feather" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="10" />
+                  </filter>
+                  <mask id="selected-subject-mask">
+                    <rect
+                      width={readyBundle.clip.width}
+                      height={readyBundle.clip.height}
+                      fill="white"
+                    />
+                    {selectedFocusBox && (
+                      <rect
+                        x={Math.max(0, selectedFocusBox.left - focusPadding)}
+                        y={Math.max(0, selectedFocusBox.top - focusPadding)}
+                        width={Math.min(
+                          readyBundle.clip.width,
+                          selectedFocusBox.right + focusPadding,
+                        ) - Math.max(0, selectedFocusBox.left - focusPadding)}
+                        height={Math.min(
+                          readyBundle.clip.height,
+                          selectedFocusBox.bottom + focusPadding,
+                        ) - Math.max(0, selectedFocusBox.top - focusPadding)}
+                        rx={Math.max(12, focusPadding)}
+                        fill="black"
+                        filter="url(#selected-subject-feather)"
+                      />
+                    )}
+                  </mask>
+                </defs>
+                {showSelectedTrail && selectedFocusBox && (
+                  <rect
+                    className="selected-subject-dimmer"
+                    width={readyBundle.clip.width}
+                    height={readyBundle.clip.height}
+                    mask="url(#selected-subject-mask)"
+                  />
+                )}
+                {showSelectedTrail && selectedTrackJourney.map((trail, index) => (
                   <line
                     className="selected-track-trail"
                     key={`${currentFrame}-${index}`}
@@ -1696,27 +2236,44 @@ export default function SavedAnalysisViewer() {
                   />
                 ))}
                 {displayedGeometry.map((geometry) => {
-                  const label = selectedRecovery
-                    ? selectedRecoveryLabel ?? {
-                        label: "unlabelled animal",
+                  const recoveryCandidate = geometry.layer === "targeted_recovery"
+                    ? recovery?.candidates.find(
+                        (candidate) => candidate.candidate_id === geometry.segment_id,
+                      )
+                    : null;
+                  const label = geometry.layer === "generic_rerun_audit"
+                    ? {
+                        label: "unlabelled rerun segment",
                         source: "unlabelled" as const,
                       }
-                    : currentReviewedLabel(
-                        readyBundle,
-                        activeReviewState,
-                        geometry.segment_id,
-                      );
+                    : recoveryCandidate && recovery
+                      ? currentRecoveryLabel(
+                          recovery,
+                          activeRecoveryReviewState,
+                          recoveryCandidate.candidate_id,
+                        )
+                      : currentReviewedLabel(
+                          readyBundle,
+                          activeReviewState,
+                          geometry.segment_id,
+                        );
                   const width = geometry.box.right - geometry.box.left;
                   const height = geometry.box.bottom - geometry.box.top;
+                  const isSelected = geometry.layer === "generic_rerun_audit"
+                    ? geometry.segment_id === selectedAuditItem?.focus_segment_id
+                    : geometry.layer === "targeted_recovery"
+                      ? geometry.segment_id === selectedRecovery?.candidate_id
+                      : geometry.segment_id === selectedSegmentId;
                   return (
                     <g
-                      className={
-                        geometry.segment_id ===
-                        (selectedRecovery?.candidate_id ?? selectedSegmentId)
-                          ? "selected-geometry"
-                          : undefined
-                      }
-                      key={`${geometry.segment_id}:${geometry.frame_index}`}
+                      className={`${isSelected ? "selected-geometry" : ""} ${
+                        geometry.layer === "generic_rerun_audit"
+                          ? "audit-geometry"
+                          : geometry.layer === "targeted_recovery"
+                            ? "recovery-geometry"
+                            : ""
+                      }`.trim() || undefined}
+                      key={`${geometry.layer}:${geometry.segment_id}:${geometry.frame_index}`}
                     >
                       <rect
                         x={geometry.box.left}
@@ -1774,15 +2331,19 @@ export default function SavedAnalysisViewer() {
               {analysisVisible && (
                 <div className="frame-readout" aria-live="off">
                   Frame {currentFrame} · {selectedGeometry.length > 0
-                    ? selectedRecovery
+                    ? selectedAuditItem
+                      ? `showing ${selectedAuditItem.focus_source === "generic_rerun" ? "rerun" : "reviewed"} box only`
+                      : selectedRecovery
                       ? `following ${selectedRecovery.candidate_id}`
                       : showAllSegments
-                      ? `${visibleGeometry.length} visible · ${selectedSegmentId} selected`
+                      ? `${displayedGeometry.length} visible · reviewed additions ${showReviewedAdditions ? "shown" : "hidden"}`
                       : `following ${selectedSegmentId}`
-                    : selectedRecovery
+                    : selectedAuditItem
+                      ? "no box at this frame"
+                      : selectedRecovery
                       ? "candidate not visible at this frame"
                       : showAllSegments
-                      ? `${visibleGeometry.length} visible · selected segment not visible`
+                      ? `${displayedGeometry.length} visible · reviewed additions ${showReviewedAdditions ? "shown" : "hidden"}`
                       : "selected segment not visible at this frame"}
                 </div>
               )}
@@ -1925,7 +2486,9 @@ export default function SavedAnalysisViewer() {
               <select
                 id="segment-focus"
                 value={
-                  selectedRecovery
+                  selectedAuditItem
+                    ? "__audit__"
+                    : selectedRecovery
                     ? `__recovery__:${selectedRecovery.candidate_id}`
                     : showAllSegments
                       ? "__all__"
@@ -1934,6 +2497,7 @@ export default function SavedAnalysisViewer() {
                 onChange={(event) => {
                   const value = event.currentTarget.value;
                   if (value === "__all__") {
+                    setSelectedAuditItemId(null);
                     setSelectedRecoveryId(null);
                     setShowAllSegments(true);
                     setShowSelectedTrail(false);
@@ -1950,6 +2514,11 @@ export default function SavedAnalysisViewer() {
                   }
                 }}
               >
+                {selectedAuditItem && (
+                  <option value="__audit__" disabled>
+                    Audit · {selectedAuditItem.focus_segment_id}
+                  </option>
+                )}
                 <option value="__all__">View all segments</option>
                 {recovery && [...recovery.candidates]
                   .sort(
@@ -1988,7 +2557,7 @@ export default function SavedAnalysisViewer() {
                 className="path-toggle"
                 type="button"
                 aria-pressed={showSelectedTrail}
-                disabled={!selectedSegmentId && !selectedRecovery}
+                disabled={Boolean(selectedAuditItem) || (!selectedSegmentId && !selectedRecovery)}
                 onClick={() => {
                   setAnalysisVisible(true);
                   setShowAllSegments(false);
@@ -1997,11 +2566,35 @@ export default function SavedAnalysisViewer() {
               >
                 {showSelectedTrail ? "Hide trail" : "Show fading trail"}
               </button>
+              <button
+                className="path-toggle"
+                type="button"
+                aria-pressed={showAllSegments && showReviewedAdditions}
+                onClick={() => {
+                  const next = !(showAllSegments && showReviewedAdditions);
+                  setShowReviewedAdditions(next);
+                  setAnalysisVisible(true);
+                  if (next) {
+                    setSelectedAuditItemId(null);
+                    setSelectedRecoveryId(null);
+                    setShowAllSegments(true);
+                    setShowSelectedTrail(false);
+                    audioScopeRef.current = { kind: "all" };
+                  }
+                  setAnnouncement(`Reviewed additions ${next ? "shown" : "hidden"}.`);
+                }}
+              >
+                {showAllSegments && showReviewedAdditions
+                  ? "Hide reviewed additions"
+                  : "Show reviewed additions"}
+              </button>
               <span>
-                {showSelectedTrail
-                  ? "Recent image-space movement follows the animal and disappears when the track is absent."
+                {selectedAuditItem
+                  ? "Audit view shows one box only. Trails and review shortcuts are disabled."
+                  : showSelectedTrail
+                  ? "The observed journey draws with the animal; no future path is shown, and focus clears when the track is absent."
                   : showAllSegments
-                  ? "All boxes are shown; the selected segment is yellow."
+                  ? `Primary tracks plus ${showReviewedAdditions ? `${acceptedRecoveryCandidates.length + keptAuditAdditions.length} reviewed additions` : "no supplemental additions"} are shown.`
                   : selectedRecovery
                     ? "Only this unmerged recovery candidate is shown."
                   : "Only this segment’s saved box is shown."}
@@ -2083,18 +2676,102 @@ export default function SavedAnalysisViewer() {
 
         <div className="workbench-side">
         <aside className="review-sheet" aria-labelledby="review-heading">
-          {recoveryAuditMenu}
+          <div className="audit-menu-row">
+            {recoveryAuditMenu}
+            {correspondenceAuditMenu}
+          </div>
           <p className="eyebrow">
-            {selectedRecovery ? "Recovery candidate" : "Evidence selected"}
+            {selectedAuditItem
+              ? "Generic rerun audit"
+              : selectedRecovery
+                ? "Recovery candidate"
+                : "Evidence selected"}
           </p>
           <h2 id="review-heading">
-            {selectedRecovery
+            {selectedAuditItem
+              ? selectedAuditItem.title
+              : selectedRecovery
               ? humanizeIdentifier(selectedRecovery.suggested_label)
               : selectedEvent
                 ? eventTitle(selectedEvent)
                 : "No event selected"}
           </h2>
-          {selectedRecovery ? (
+          {selectedAuditItem ? (
+            <>
+              <p className="event-time">
+                {formatTime(selectedAuditStart)}–{formatTime(selectedAuditEnd)} · {selectedAuditItem.focus_segment_id}
+              </p>
+              <p className={`review-status ${selectedAuditDecision}`}>
+                Audit finding {selectedAuditDecision}
+              </p>
+              <p className="review-copy">{selectedAuditItem.detail}</p>
+              <dl className="event-facts">
+                <div>
+                  <dt>Evidence</dt>
+                  <dd>
+                    {selectedAuditItem.focus_source === "generic_rerun"
+                      ? "Generic rerun box"
+                      : "Reviewed saved segment"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Finding</dt>
+                  <dd>{auditFilterLabels.find((filter) => filter.kind === selectedAuditItem.kind)?.label}</dd>
+                </div>
+                <div>
+                  <dt>Identity</dt>
+                  <dd>Not linked or merged</dd>
+                </div>
+              </dl>
+              <p className="review-instruction">
+                {selectedAuditItem.kind === "candidate_unmatched"
+                  ? "Keep adds this box-only track to Reviewed additions, the timeline, and the reviewed-track CSV. It does not create events, confirm species, or merge identity."
+                  : "Keep retains this audit finding only. Possible overlap and missing-reference findings do not add or merge a track."}
+              </p>
+              <div className="decision-row">
+                <button
+                  className={selectedAuditDecision === "kept" ? "decision-active" : undefined}
+                  type="button"
+                  onClick={() => decideSelectedCorrespondenceAudit("kept")}
+                >
+                  {selectedAuditItem.kind === "candidate_unmatched" ? "Keep as addition" : "Keep finding"} <span aria-hidden="true">(A)</span>
+                </button>
+                <button
+                  className={selectedAuditDecision === "dismissed" ? "decision-active" : undefined}
+                  type="button"
+                  onClick={() => decideSelectedCorrespondenceAudit("dismissed")}
+                >
+                  Dismiss <span aria-hidden="true">(R)</span>
+                </button>
+                <button
+                  className={selectedAuditDecision === "uncertain" ? "decision-active uncertain" : undefined}
+                  type="button"
+                  onClick={() => decideSelectedCorrespondenceAudit("uncertain")}
+                >
+                  Can’t tell <span aria-hidden="true">(U)</span>
+                </button>
+              </div>
+              <div className="review-navigation">
+                <button type="button" onClick={() => navigateCorrespondenceAudit(-1)}>
+                  Previous <span aria-hidden="true">(K)</span>
+                </button>
+                <button type="button" onClick={() => navigateCorrespondenceAudit(1)}>
+                  Next <span aria-hidden="true">(J)</span>
+                </button>
+              </div>
+              <button
+                className="wide-button"
+                type="button"
+                onClick={clearCorrespondenceAuditSelection}
+              >
+                Return to event review
+              </button>
+              <p className="small-note">
+                Decisions stay in this browser and are exported separately from
+                event and recovery reviews.
+              </p>
+            </>
+          ) : selectedRecovery ? (
             <>
               <p className="event-time">
                 {formatTime(selectedRecovery.start_s)}–{formatTime(selectedRecovery.end_s)} · {selectedRecovery.candidate_id}

@@ -3,6 +3,8 @@ import test from "node:test";
 
 import type { WildScoreBundle } from "../data/bundle-schema.ts";
 import type { RecoveryCandidateBundle } from "../data/recovery-schema.ts";
+import type { CorrespondenceAuditBundle } from "../data/correspondence-audit-schema.ts";
+import { createInitialCorrespondenceAuditReviewState } from "../review/correspondence-audit-state.ts";
 import { createInitialRecoveryReviewState } from "../review/recovery-state.ts";
 import { createInitialReviewState } from "../review/review-state.ts";
 import { buildTrackSummaryCsv, trackMetrics, TRACK_SUMMARY_CSV_HEADER } from "./track-summary-csv.ts";
@@ -126,4 +128,70 @@ test("adds only accepted recovery tracks with explicit provenance", () => {
     /"cross_response_identity_unresolved\|identity_not_merged\|supplemental_targeted_track"/u,
   );
   assert.doesNotMatch(csv, /recovery-antelope-2/u);
+});
+
+test("adds only kept unmatched generic-rerun tracks as box-only evidence", () => {
+  const primary = {
+    schema_version: "0.1.0",
+    clip: { clip_id: "clip-01", processed_fps: 10 },
+    run: { run_id: "run-1" },
+    segments: [segment],
+    label_proposals: [],
+    events: [],
+    reviews: [],
+  } as unknown as WildScoreBundle;
+  const audit = {
+    schema_version: "wildscore-correspondence-audit-v1",
+    clip_id: "clip-01",
+    source_run_id: "generic-rerun-1",
+    fps: 10,
+    width: 100,
+    height: 100,
+    provenance: "generic_sam_rerun_not_merged",
+    candidate_segments: [
+      {
+        segment_id: "rerun-kept",
+        first_frame: 2,
+        last_frame: 4,
+        geometry: [
+          { frame_index: 2, box: { left: 1, top: 1, right: 3, bottom: 3 } },
+          { frame_index: 4, box: { left: 2, top: 1, right: 4, bottom: 3 } },
+        ],
+      },
+      {
+        segment_id: "rerun-dismissed",
+        first_frame: 5,
+        last_frame: 5,
+        geometry: [
+          { frame_index: 5, box: { left: 4, top: 4, right: 6, bottom: 6 } },
+        ],
+      },
+    ],
+    correspondence_candidates: [],
+    reference_segments_without_candidate: [],
+    candidate_segments_without_reference: ["rerun-kept", "rerun-dismissed"],
+    duplicate_review: [],
+  } as CorrespondenceAuditBundle;
+  const auditState = createInitialCorrespondenceAuditReviewState(audit);
+  auditState.decisions["candidate-unmatched:rerun-kept"] = "kept";
+  auditState.decisions["candidate-unmatched:rerun-dismissed"] = "dismissed";
+
+  const csv = buildTrackSummaryCsv(
+    primary,
+    createInitialReviewState(primary),
+    undefined,
+    undefined,
+    audit,
+    auditState,
+  );
+
+  assert.match(
+    csv,
+    /"rerun-kept","generic-rerun:rerun-kept","generic_rerun_audit","meta_sam_generic_rerun","kept"/u,
+  );
+  assert.match(
+    csv,
+    /"box_only_audit_evidence\|identity_not_merged\|supplemental_generic_rerun"/u,
+  );
+  assert.doesNotMatch(csv, /rerun-dismissed/u);
 });

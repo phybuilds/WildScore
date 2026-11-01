@@ -8,12 +8,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runAnalysisPreflight } from "../src/cli/analysis-preflight.mjs";
+import { executeFullAnalysisPipeline, executeSamEventPipeline } from "../src/cli/analysis-pipeline.mjs";
 import { parseCliArgs } from "../src/cli/args.mjs";
-import { prepareAnalysisRun } from "../src/cli/run-preparation.mjs";
 import { verifyDemoAssets } from "../src/cli/demo-integrity.mjs";
 import { runDoctor } from "../src/cli/doctor.mjs";
 import { parseByteRange } from "../src/cli/http-range.mjs";
-import { executeMetaSamRun, MetaSamRunError } from "../src/cli/meta-sam-run.mjs";
+import { MetaSamRunError } from "../src/cli/meta-sam-run.mjs";
 import { loadRecoveryBatch } from "../src/cli/recovery-batch.mjs";
 
 const REPOSITORY_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -34,9 +34,11 @@ function printHelp() {
     "",
     "  wildscore --demo [--check] [--port 4173]",
     "  wildscore doctor",
+    "  wildscore view <run-id> [--port 4173]",
     "  wildscore analyse <local-video> --dry-run [--max-seconds 30] [--max-calls 8]",
     "  wildscore analyse <local-video> --prepare-only [--max-seconds 30]",
     "  wildscore analyse <local-video> --sam-only --yes [--max-seconds 30] [--max-calls 3]",
+    "  wildscore analyse <local-video> --full --yes [--max-seconds 30] [--max-calls 8]",
     "  wildscore recover <batch.json> --dry-run [--max-calls 8]",
     "",
     "Replays the bundled cached analysis without an API key or model call.",
@@ -62,8 +64,24 @@ function runBuild() {
   });
 }
 
-async function resolveStaticFile(requestUrl) {
+async function resolveStaticFile(requestUrl, runBundleDirectory = null) {
   const pathname = decodeURIComponent(new URL(requestUrl, "http://127.0.0.1").pathname);
+  if (runBundleDirectory !== null && pathname.startsWith("/demo/")) {
+    const runAssets = new Map([
+      ["/demo/bundle.json", "bundle.json"],
+      ["/demo/recovery-candidates.json", "recovery-candidates.json"],
+      ["/demo/analysis.mp4", "analysis.mp4"],
+    ]);
+    const asset = runAssets.get(pathname);
+    if (!asset) return null;
+    const resolvedRunAsset = path.join(runBundleDirectory, asset);
+    try {
+      return (await stat(resolvedRunAsset)).isFile() ? resolvedRunAsset : null;
+    } catch (error) {
+      if (error?.code === "ENOENT") return null;
+      throw error;
+    }
+  }
   const requested = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
   const resolved = path.resolve(STATIC_DIRECTORY, requested);
   if (resolved !== STATIC_DIRECTORY && !resolved.startsWith(`${STATIC_DIRECTORY}${path.sep}`)) {
@@ -77,7 +95,7 @@ async function resolveStaticFile(requestUrl) {
   }
 }
 
-async function serveDemo(port) {
+async function serveDemo(port, runBundleDirectory = null) {
   const server = http.createServer(async (request, response) => {
     if (request.method !== "GET" && request.method !== "HEAD") {
       response.writeHead(405, { Allow: "GET, HEAD" });
@@ -85,7 +103,7 @@ async function serveDemo(port) {
       return;
     }
     try {
-      const filePath = await resolveStaticFile(request.url ?? "/");
+      const filePath = await resolveStaticFile(request.url ?? "/", runBundleDirectory);
       if (!filePath) {
         response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
         response.end("Not found\n");
@@ -119,8 +137,8 @@ async function serveDemo(port) {
     server.once("error", reject);
     server.listen(port, "127.0.0.1", resolve);
   });
-  console.log(`WildScore cached demo: http://127.0.0.1:${port}/`);
-  console.log("No API key was loaded and no model call will be made. Press Ctrl-C to stop.");
+  console.log(`WildScore ${runBundleDirectory ? "private run" : "cached demo"}: http://127.0.0.1:${port}/`);
+  console.log("No API key was loaded and no model call will be made while viewing. Press Ctrl-C to stop.");
   const stop = () => server.close();
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
@@ -133,6 +151,21 @@ try {
   } else if (options.mode === "doctor") {
     const code = await runDoctor();
     if (code !== 0) process.exitCode = code;
+  } else if (options.mode === "view") {
+    const runBundleDirectory = path.join(
+      REPOSITORY_ROOT,
+      "private",
+      "runs",
+      options.runId,
+      "bundle",
+    );
+    await Promise.all([
+      stat(path.join(runBundleDirectory, "bundle.json")),
+      stat(path.join(runBundleDirectory, "recovery-candidates.json")),
+      stat(path.join(runBundleDirectory, "analysis.mp4")),
+    ]);
+    await runBuild();
+    await serveDemo(options.port, runBundleDirectory);
   } else if (options.mode === "analyse") {
     await runAnalysisPreflight({
       videoPath: options.videoPath,
@@ -140,26 +173,42 @@ try {
       maxCalls: options.maxCalls,
       log: options.prepareOnly ? () => {} : console.log,
     });
-    if (options.prepareOnly || options.samOnly) {
-      const prepared = await prepareAnalysisRun({
+    if (options.prepareOnly) {
+      const { prepareAnalysisRun } = await import("../src/cli/run-preparation.mjs");
+      await prepareAnalysisRun({
         videoPath: options.videoPath,
         maxSeconds: options.maxSeconds,
         repositoryRoot: REPOSITORY_ROOT,
       });
-      if (options.samOnly) {
-        const result = await executeMetaSamRun({
+    } else if (options.samOnly) {
+        const result = await executeSamEventPipeline({
+          videoPath: options.videoPath,
+          maxSeconds: options.maxSeconds,
+          maxCalls: options.maxCalls,
           repositoryRoot: REPOSITORY_ROOT,
-          runId: prepared.runId,
           apiKey: process.env.MODEL_API_KEY,
-          maxAttempts: Math.min(options.maxCalls, 3),
         });
         console.log(
-          result.reused
+          result.sam.reused
             ? "Verified and reused the private SAM checkpoint; no model call was made."
-            : `SAM completed and remote input deletion was confirmed. Parsed ${result.checkpoint.summary.track_count} track${result.checkpoint.summary.track_count === 1 ? "" : "s"}.`,
+            : `SAM completed and remote input deletion was confirmed. Parsed ${result.sam.checkpoint.summary.track_count} track${result.sam.checkpoint.summary.track_count === 1 ? "" : "s"}.`,
         );
-        console.log("Spark labelling and the final viewer bundle are not part of this SAM-only command.");
-      }
+        console.log(
+          `${result.events.reused ? "Reused" : "Created"} deterministic event evidence: ${result.events.checkpoint.segments.length} presence segments and ${result.events.checkpoint.events.length} event proposals.`,
+        );
+        console.log("Created a private geometry-only viewer bundle. Spark labelling is not part of --sam-only.");
+    } else if (options.full) {
+      const result = await executeFullAnalysisPipeline({
+        videoPath: options.videoPath,
+        maxSeconds: options.maxSeconds,
+        maxCalls: options.maxCalls,
+        repositoryRoot: REPOSITORY_ROOT,
+        apiKey: process.env.MODEL_API_KEY,
+      });
+      console.log(
+        `Full private analysis completed with ${result.events.checkpoint.segments.length} presence segments, ${result.events.checkpoint.events.length} event proposals, and ${result.spark.checkpoint.labelProposals.length} validated Spark label proposals.`,
+      );
+      console.log(`View it with: node bin/wildscore.mjs view ${result.prepared.runId}`);
     }
   } else if (options.mode === "recover") {
     const plan = await loadRecoveryBatch(options.batchPath, options.maxCalls);
