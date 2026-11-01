@@ -1207,7 +1207,7 @@ export default function SavedAnalysisViewer() {
     });
     const nextStep =
       decision === "kept" && selectedAuditItem.kind === "candidate_unmatched"
-        ? " Box-only evidence queued for a targeted recovery run."
+        ? " Box-only evidence added to Reviewed additions and the track CSV."
         : "";
     setAnnouncement(`Audit finding ${decision}.${nextStep}`);
   }
