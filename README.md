@@ -1,138 +1,181 @@
 # WildScore
 
-WildScore is an evidence-linked review notebook for short wildlife videos. Its
-local pipeline uses Meta models to propose animal segments and reviewable labels.
-The static viewer replays deliberately prepared saved results without API access.
+**A field log you can listen to.** WildScore turns short wildlife videos into an
+evidence-linked timeline that researchers can review by sight and sound.
 
-The project has a verified single-clip feasibility run and a working local
-saved-result review loop. A real private clip completed the SAM and Spark
-pipeline, parser validation and deterministic presence/event bundle generation.
-The viewer synchronises saved geometry with video, keeps event and label reviews
-independent, replays evidence and exports every proposal to CSV with its review
-status. Source media and raw model output remain private. The repository includes
-one approved, sanitised demo excerpt and a reviewed cached-result bundle so the
-review workflow can run without a key or network model call.
+[Open the live cached demo](https://wildscore-demo.pages.dev/) · Built for the
+Meta Global AI Developer Hackathon with **Meta SAM 3.1** and **Muse Spark 1.3**
 
-## Security boundary
+The live site is a transparent replay of saved analysis, not live inference.
+Every track, event and label remains a proposal until a person reviews it.
 
-- Every model called by the WildScore processing pipeline, including offline or
-  cached-result generation, must be a Meta model.
-- `MODEL_API_KEY` is local-process-only. It must never be prefixed with `NEXT_PUBLIC_`, embedded in browser code, committed, logged, or copied into public assets.
-- Put private source media, raw model responses, and caches under the ignored `private/` directory.
-- The viewer is a static export. It contains no upload endpoint, inference proxy,
-  API route or model credential.
-- Do not place source footage in a public asset directory. A sanitised display
-  copy still requires a separate rights and privacy decision before publication.
+## Try it in 60 seconds
 
-## Current prerequisites
+1. Open the live demo and press **Analyse** to replay the saved pipeline result.
+2. Select a track or event to jump to its source evidence and hear its spatial cue.
+3. Accept, reject or mark an event **Can’t tell**; correct labels separately.
+4. Review supplemental recovery tracks and generic rerun findings without silently
+   merging identities.
+5. Export the full event ledger or descriptive track metrics as CSV.
 
-- Node.js 24.22.1 and npm 11.19.1 (pinned in `.node-version` and `package.json`)
-- ffmpeg and ffprobe 8.0.3 or a later reviewed patched release (9.0.2 is the current stable release as of 26 October 2026)
-
-Project dependencies are exact-versioned in `package.json` and
-`package-lock.json`. `@meta-sam/parser` is the official zero-runtime-dependency
-parser used for SAM output.
-
-## Local feasibility commands
-
-Install exactly what is locked, without running dependency lifecycle scripts:
+For a keyless, network-free local copy:
 
 ```bash
 npm ci --ignore-scripts
-```
-
-Create a private `.env.local` containing `MODEL_API_KEY`, then place a reviewed,
-sanitised analysis derivative at the private path expected by the scripts. Never
-commit either file.
-
-```bash
-npm run check:model-key
-npm run test:sam-parser
-npm run test:events
-npm run feasibility:meta
-npm run prepare:spark-evidence
-npm run feasibility:spark
-npm run build:bundle
-```
-
-The scripts use `sam-3.1` for segmentation and `muse-spark-1.3` standard mode
-for bounded label evidence. They preserve immutable machine proposals separately
-from human review corrections. Inference outputs remain private until a specific
-bundle is reviewed for publication.
-
-## Keyless cached demo
-
-After installing the locked dependencies, verify, build and serve the bundled
-cached analysis on the loopback interface:
-
-```bash
 npm run demo -- --check
 npm run demo
 ```
 
-The demo command verifies SHA-256 hashes before building, never calls a model and
-does not pass `MODEL_API_KEY` to the static build. The included field excerpt is
-attributed to the WildScore project and licensed CC BY-NC 4.0; see the bundled
-attribution file. For development work, use:
+The demo command verifies the committed asset hashes before building. It removes
+`MODEL_API_KEY` from the build environment and binds the viewer to `127.0.0.1`.
+
+## Why it matters — Impact (30%)
+
+Wildlife footage accumulates faster than small research teams can inspect it.
+Crowded scenes, occlusion and camera movement make automated output especially
+hard to trust. WildScore is designed for the researcher who must answer a simpler
+question first: **what did the model see, when, and what evidence supports it?**
+
+The project fits **Build for Your World** by reducing the repetitive visual search
+and bookkeeping around field-video review. It also reaches toward **Push the
+Frontier** by turning segmentation geometry into a navigable audiovisual score:
+horizontal position becomes stereo position, appearance and disappearance use
+different cue shapes, and every cue links back to the exact saved evidence.
+
+WildScore does not claim measured time savings or production accuracy yet. The
+current result establishes a usable review workflow and exposes model failure
+rather than hiding it.
+
+## Meta AI use (25%)
+
+- **SAM 3.1** proposes frame-indexed animal geometry from a metadata-stripped
+  derivative. Sparse frames and object identifiers are parsed explicitly.
+- **Muse Spark 1.3** reviews bounded visual evidence for a small number of tracks.
+  It receives no filename, filming location or user-supplied species hint.
+- **Geometry becomes interaction:** track position drives the stereo score, saved
+  timestamps drive deterministic navigation, and reruns can be compared without
+  asserting that two tracks are the same animal.
+- **Human review is first-class:** event decisions, label decisions, recovery
+  evidence and rerun-audit decisions are separate records. Machine proposals are
+  preserved when a researcher corrects them.
+
+Every model called by the WildScore analysis pipeline is a Meta model. The static
+viewer itself makes no model call.
+
+## Technical execution (20%)
+
+```text
+local video
+  -> ffprobe validation
+  -> metadata-stripped private derivative
+  -> Meta SAM 3.1 geometry
+  -> deterministic presence and event proposals
+  -> bounded Muse Spark 1.3 label evidence
+  -> validated private bundle
+  -> static review viewer and defensive CSV exports
+```
+
+The CLI uses argument arrays rather than shell interpolation, pins the Meta API
+host, caps duration and calls, checkpoints resumable stages, validates model
+output, and confirms remote media deletion after SAM. If Spark fails, the
+geometry timeline remains reviewable with unlabelled tracks.
+
+Browser review state is scoped to the analysis bundle and stored locally. CSV
+exports include rejected and uncertain proposals and neutralise spreadsheet
+formula prefixes in editable fields.
+
+Run the complete verification suite:
 
 ```bash
 npm test
 npm run typecheck
 npm run build
 npm run check:public
-npm run dev
 ```
 
-Validate one browser-exported missed-animal batch without loading an API key or
-making a model call:
+## Working demo (25%)
+
+The bundled development clip currently contains:
+
+- 51 saved event proposals with stored human decisions;
+- 10 accepted supplemental recovery tracks;
+- a separate generic-rerun audit that can keep or dismiss box-only evidence;
+- a cached spatial-audio timeline, label corrections and auditable CSV exports.
+
+A separate short public-domain wolf clip supplied one frozen held-out check:
+two eligible boundary events were matched with no misses or false alarms, and the
+image-only Spark label matched the frozen reference. That single, uncrowded clip
+is a pipeline check—not a general accuracy estimate.
+
+The field-demo excerpt is sanitised, attributed to the WildScore project and
+licensed **CC BY-NC 4.0**. Its attribution is included with the demo assets.
+
+## Analyse your own footage
+
+Requirements:
+
+- Node.js 24.22.1 and npm 11.19.1;
+- ffmpeg and ffprobe 8.0.3 or a later reviewed patched release;
+- a Meta Model API key stored as `MODEL_API_KEY` in an ignored `.env.local` file.
+
+Check the environment without printing the key:
 
 ```bash
-node bin/wildscore.mjs recover missing-animals.json --dry-run --max-calls 8
+node --env-file=.env.local bin/wildscore.mjs doctor
 ```
 
-Live batch recovery is not enabled by this command yet; the preflight establishes
-the bounded, label-free box-prompt contract that the local Meta SAM runner will use.
+Inspect the bounded plan before any model call, then explicitly approve the full
+run:
 
-The live `analyse --sam-only --yes` path prepares a metadata-stripped derivative,
-runs or resumes Meta SAM 3.1, confirms remote input deletion, and stores deterministic
-presence segments and event proposals under the private run directory. It also creates
-a private geometry-only viewer bundle. Open the printed run ID without another model
-call or credential:
+```bash
+node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --dry-run --max-seconds 30 --max-calls 8
+node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --full --yes --max-seconds 30 --max-calls 8
+```
+
+The total cap reserves up to three SAM attempts and uses the remainder for
+visible-evidence-only Spark labels. Results stay under the ignored private run
+directory. Open the printed run identifier without another model call:
 
 ```bash
 node bin/wildscore.mjs view run-0123456789abcdef
 ```
 
-Run the bounded full pipeline only after checking the dry-run plan:
+A SAM-only run is also available:
 
 ```bash
-node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --dry-run --max-calls 8
-node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --full --yes --max-calls 8
+node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --sam-only --yes --max-calls 3
 ```
 
-The total call cap reserves up to three attempts for SAM and uses the remainder
-for visible-evidence-only Muse Spark labels. Spark failures do not discard the
-SAM timeline; the resulting private viewer remains available with unlabelled tracks.
+## Security and privacy boundary
 
-The viewer validates the saved bundle before use. Event, label and recovery
-reviews use bundle-scoped browser-local storage and never leave the device.
-Resetting reviews restores the immutable stored bundle. CSV export
-retains proposed, accepted, rejected and `can't tell` events and neutralises
-spreadsheet-formula prefixes in editable fields.
-
-## Post-hackathon roadmap
-
-- Consider SpeciesNet as an optional comparison or integration only after the
-  Meta hackathon. It is deliberately excluded from the current pipeline because
-  WildScore's hackathon build calls Meta models exclusively. Any later addition
-  must preserve local-first privacy, provenance and human review boundaries.
+- `MODEL_API_KEY` is process-local. It is never accepted as a CLI argument,
+  prefixed with `NEXT_PUBLIC_`, embedded in browser code, committed or logged.
+- Source media, raw provider responses, caches and run bundles belong under the
+  ignored private directory.
+- Input is re-encoded with metadata removed before it is sent to a model.
+- The public viewer has no upload endpoint, API route, inference proxy or secret.
+- Public output is scanned for credentials, environment files, personal paths,
+  private run data and source metadata before release.
 
 ## Current limitations
 
-- One development clip has been tested; there is no held-out accuracy estimate.
-- Camera movement, occlusion, crowding and the model's tracking limit can produce
-  fragmented or missed segments.
-- Appearance and disappearance events are review proposals, not assertions of
-  biological entry, exit, visit count or individual identity.
-- Provider-reported usage can support cost estimates but is not a billing-ledger
-  confirmation.
+- The crowded development clip revealed missed animals, fragmented tracks and
+  duplicate identities. Accepted recovery layers improve visible coverage but do
+  not retroactively prove recall or persistent animal identity.
+- Camera motion, occlusion, crowding and short tracks remain difficult. Event
+  proposals are not biological claims about entry, exit or visit count.
+- Muse Spark labels are bounded visual proposals, not calibrated confidence
+  scores. The provider outputs used here do not supply a trustworthy,
+  cross-stage confidence value, so the CSV intentionally has no confidence
+  column.
+- The held-out result is one small pipeline check. More diverse, independently
+  annotated clips are required before reporting accuracy.
+- Live missed-animal batch recovery remains a planned extension; its label-free,
+  bounded preflight contract exists, but the CLI does not yet execute that batch.
+
+## After the hackathon
+
+SpeciesNet is a candidate comparison or optional integration after the Meta
+hackathon. It is excluded from this build so the submitted pipeline remains
+Meta-only. Any later integration must preserve local-first privacy, provenance
+and human review boundaries.
