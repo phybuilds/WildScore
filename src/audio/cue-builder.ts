@@ -65,11 +65,13 @@ function motifForEvent(
   const boxCenterX = geometry
     ? (geometry.box.left + geometry.box.right) / 2
     : bundle.clip.width / 2;
-  const normalizedPan =
-    bundle.clip.width > 0 ? (boxCenterX / bundle.clip.width) * 2 - 1 : 0;
-  const pan = Number(
-    Math.max(-0.85, Math.min(0.85, normalizedPan)).toFixed(3),
-  );
+  const pan = bundle.clip.width > 0
+    ? boxCenterX < bundle.clip.width / 3
+      ? -1
+      : boxCenterX > (bundle.clip.width * 2) / 3
+        ? 1
+        : 0
+    : 0;
   const isAppearance = event.event_kind === "appearance";
   const ratios = isAppearance ? APPEARANCE_RATIOS : DISAPPEARANCE_RATIOS;
   const gain = reviewStatus === "accepted" ? 0.1 : 0.055;

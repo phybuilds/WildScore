@@ -89,10 +89,22 @@ test("appearance rises and disappearance falls from a stable segment root", () =
   assert.ok(cues[1].notes[0].frequency_hz > cues[1].notes[2].frequency_hz);
   assert.equal(cues[0].notes[0].oscillator_type, "triangle");
   assert.equal(cues[1].notes[0].oscillator_type, "sine");
-  assert.ok(cues[0].notes[0].pan < 0);
-  assert.ok(cues[1].notes[0].pan > 0);
+  assert.equal(cues[0].notes[0].pan, -1);
+  assert.equal(cues[1].notes[0].pan, 1);
   assert.ok(cues[1].notes[2].duration_s > cues[0].notes[2].duration_s);
   assert.equal(segmentRootFrequency("segment-1"), segmentRootFrequency("segment-1"));
+});
+
+test("middle-third events play equally through both stereo channels", () => {
+  const bundle = fixture([event("appearance-1", "appearance", 1)]);
+  bundle.segments[0].geometry[0].box = {
+    left: 4,
+    top: 0,
+    right: 6,
+    bottom: 2,
+  };
+  const cues = buildEventCues(bundle, createInitialReviewState(bundle));
+  assert.equal(cues[0].notes[0].pan, 0);
 });
 
 test("accepted cues are stronger and rejected or uncertain events are silent", () => {
