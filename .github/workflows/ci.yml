@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+        env:
+          MODEL_API_KEY: ""
+      - run: npm run typecheck
+      - run: npm run build
+        env:
+          MODEL_API_KEY: ""
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --tag wildscore:ci .
+      - name: Verify static-only image boundary
+        run: |
+          test -z "$(docker image inspect wildscore:ci --format '{{range .Config.Env}}{{println .}}{{end}}' | grep MODEL_API_KEY || true)"
+          docker run --rm --entrypoint sh wildscore:ci -c 'test ! -e /app/private && test ! -e /app/src && test ! -e /app/scripts && test ! -e /app/bin'
+      - name: Smoke-test viewer
+        run: |
+          docker run --detach --rm --name wildscore-ci -p 127.0.0.1:8080:8080 wildscore:ci
+          trap 'docker stop wildscore-ci' EXIT
+          for attempt in 1 2 3 4 5; do
+            curl --fail --silent --show-error http://127.0.0.1:8080/ >/dev/null && exit 0
+            sleep 1
+          done
+          exit 1

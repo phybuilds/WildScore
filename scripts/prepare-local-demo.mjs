@@ -118,6 +118,7 @@ const assetNames = [
   "correspondence-audit.json",
   "recovery-candidates.json",
   PUBLIC_MEDIA_NAME,
+  "wolf-heldout-boundary.png",
 ];
 const assets = Object.fromEntries(
   await Promise.all(assetNames.map(async (name) => [name, await sha256(path.join(DEMO_DIRECTORY, name))])),

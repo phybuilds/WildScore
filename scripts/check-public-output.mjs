@@ -11,8 +11,8 @@ const fixedNeedles = [
   "private/derived",
   ["BUILD", "BRIEF"].join("_"),
   ["", "Users", ""].join("/"),
+  "/home/",
   "C:\\Users\\",
-  process.cwd(),
   '"processed_media_sha256"',
   '"config_hash"',
 ];
