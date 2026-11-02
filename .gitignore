@@ -12,6 +12,7 @@ web/public/demo/*
 !web/public/demo/manifest.json
 !web/public/demo/recovery-candidates.json
 !web/public/demo/wildscore-field-demo.mp4
+!web/public/demo/wolf-heldout-boundary.png
 node_modules/
 .next/
 out/
@@ -20,3 +21,10 @@ web/out/
 
 .DS_Store
 *.tsbuildinfo
+
+# Local build brief, source mockups and internal QA evidence are never public.
+BUILD_BRIEF.md
+Option 2 Field notebook (chosen)@1x.png
+design-qa-assets/
+design-qa.md
+docs/setup-report-*.md

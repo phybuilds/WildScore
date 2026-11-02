@@ -88,7 +88,8 @@
     "prepare:spark-evidence": "node scripts/prepare-spark-evidence.mjs",
     "feasibility:spark": "node --env-file=.env.local scripts/meta-spark-label.mjs",
     "experiment:spark-context": "node --env-file=.env.local scripts/meta-spark-context-ab.mjs",
-    "build:bundle": "node scripts/build-result-bundle.mjs",
+    "build:bundle": "node bin/wildscore.mjs --demo --check",
+    "build:private-bundle": "node scripts/build-result-bundle.mjs",
     "test:events": "node --test scripts/lib/presence-segments.test.mjs",
     "test:track-overlap": "node --test scripts/lib/track-overlap.test.mjs"
   },

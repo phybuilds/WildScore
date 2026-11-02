@@ -19,6 +19,10 @@ import { loadRecoveryBatch } from "../src/cli/recovery-batch.mjs";
 const REPOSITORY_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const DEMO_DIRECTORY = path.join(REPOSITORY_ROOT, "web/public/demo");
 const STATIC_DIRECTORY = path.join(REPOSITORY_ROOT, "web/out");
+const SERVER_HOST = process.env.WILDSCORE_SERVER_HOST === "0.0.0.0"
+  ? "0.0.0.0"
+  : "127.0.0.1";
+const SERVE_PREBUILT = process.env.WILDSCORE_SERVE_PREBUILT === "1";
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
@@ -65,7 +69,7 @@ function runBuild() {
 }
 
 async function resolveStaticFile(requestUrl, runBundleDirectory = null) {
-  const pathname = decodeURIComponent(new URL(requestUrl, "http://127.0.0.1").pathname);
+  const pathname = decodeURIComponent(new URL(requestUrl, `http://${SERVER_HOST}`).pathname);
   if (runBundleDirectory !== null && pathname.startsWith("/demo/")) {
     const runAssets = new Map([
       ["/demo/bundle.json", "bundle.json"],
@@ -135,9 +139,9 @@ async function serveDemo(port, runBundleDirectory = null) {
 
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(port, "127.0.0.1", resolve);
+    server.listen(port, SERVER_HOST, resolve);
   });
-  console.log(`WildScore ${runBundleDirectory ? "private run" : "cached demo"}: http://127.0.0.1:${port}/`);
+  console.log(`WildScore ${runBundleDirectory ? "private run" : "cached demo"}: http://${SERVER_HOST}:${port}/`);
   console.log("No API key was loaded and no model call will be made while viewing. Press Ctrl-C to stop.");
   const stop = () => server.close();
   process.once("SIGINT", stop);
@@ -219,7 +223,7 @@ try {
     const manifest = await verifyDemoAssets(DEMO_DIRECTORY);
     console.log(`Verified ${Object.keys(manifest.assets).length} bundled demo assets.`);
     if (!options.checkOnly) {
-      await runBuild();
+      if (!SERVE_PREBUILT) await runBuild();
       await serveDemo(options.port);
     }
   }

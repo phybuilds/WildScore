@@ -1,0 +1,31 @@
+.git
+.github
+**/.next
+out
+web/out
+node_modules
+docs
+
+.env
+.env.*
+**/.env
+**/.env.*
+
+private
+BUILD_BRIEF.md
+Option 2 Field notebook (chosen)@1x.png
+design-qa-assets
+design-qa.md
+
+# Source footage is never sent to the image. Only the approved, sanitised demo
+# excerpt is available to the static viewer.
+**/*.mp4
+!web/public/demo/wildscore-field-demo.mp4
+**/*.mov
+**/*.webm
+**/*.avi
+**/*.mkv
+
+.DS_Store
+*.log
+*.tsbuildinfo
