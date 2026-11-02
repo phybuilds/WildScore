@@ -8,6 +8,7 @@ WildScore turns a short wildlife clip into an **evidence-linked event timeline**
 >
 > **Track: Build for Your World.** A problem I know firsthand: working in biodiversity research, I've seen wildlife footage outgrow the people who have to review it.
 
+[![CI](https://github.com/phybuilds/WildScore/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/phybuilds/WildScore/actions/workflows/ci.yml)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-open%20the%20keyless%20viewer-2563eb?style=for-the-badge)](https://wildscore-demo.pages.dev/)
 
 ![WildScore review cockpit showing wildlife video, evidence-linked tracks and event timeline](docs/assets/wildscore-hero.png)
