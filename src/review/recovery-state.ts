@@ -13,6 +13,7 @@ export type RecoveryReviewAction =
   | { type: "reset"; bundle: RecoveryCandidateBundle }
   | { type: "restore"; bundle: RecoveryCandidateBundle; decisions: unknown }
   | { type: "restore_labels"; bundle: RecoveryCandidateBundle; labels: unknown }
+  | { type: "restore_candidate"; bundle: RecoveryCandidateBundle; candidate_id: string }
   | { type: "decide_label"; candidate_id: string; decision: "accepted" | "corrected" | "uncertain"; value: string | null }
   | {
       type: "decide";
@@ -65,6 +66,17 @@ export function recoveryReviewReducer(
     return {
       ...createInitialRecoveryReviewState(action.bundle),
       label_decisions: state.label_decisions,
+    };
+  }
+  if (action.type === "restore_candidate") {
+    if (!(action.candidate_id in state.decisions)) return state;
+    const baseline = createInitialRecoveryReviewState(action.bundle);
+    return {
+      ...state,
+      decisions: {
+        ...state.decisions,
+        [action.candidate_id]: baseline.decisions[action.candidate_id],
+      },
     };
   }
   if (action.type === "restore") {

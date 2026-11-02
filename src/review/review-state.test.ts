@@ -156,6 +156,24 @@ test("reset restores the stored bundle review", () => {
   });
 });
 
+test("undo restores only the selected event to its saved baseline", () => {
+  const bundle = fixture();
+  const changed = reviewReducer(createInitialReviewState(bundle), {
+    type: "decide_event",
+    event_id: "event-1",
+    decision: "accepted",
+    reviewer: "local_reviewer",
+    reviewed_at: "2026-11-01T12:00:00.000Z",
+  });
+  const restored = reviewReducer(changed, {
+    type: "restore_event",
+    bundle,
+    event_id: "event-1",
+  });
+  assert.equal(restored.event_reviews["event-1"].decision, "proposed");
+  assert.deepEqual(restored.label_reviews, changed.label_reviews);
+});
+
 test("restores bundle-scoped browser reviews and ignores stale ids", () => {
   const bundle = fixture();
   const changed = reviewReducer(createInitialReviewState(bundle), {

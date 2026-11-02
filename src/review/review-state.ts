@@ -43,6 +43,7 @@ export type ReviewAction =
       reviewer: string;
       reviewed_at: string;
     }
+  | { type: "restore_event"; bundle: WildScoreBundle; event_id: string }
   | {
       type: "review_label";
       segment_id: string;
@@ -220,6 +221,15 @@ export function reviewReducer(
   }
   if (action.type === "load" || action.type === "reset") {
     return createInitialReviewState(action.bundle);
+  }
+  if (action.type === "restore_event") {
+    if (!(action.event_id in state.event_reviews)) return state;
+    const baseline = createInitialReviewState(action.bundle).event_reviews[action.event_id];
+    if (!baseline) return state;
+    return {
+      ...state,
+      event_reviews: { ...state.event_reviews, [action.event_id]: baseline },
+    };
   }
   if (action.type === "decide_event" || action.type === "decide_events") {
     const eventIds =

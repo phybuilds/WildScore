@@ -75,6 +75,21 @@ test("reset does not depend on event review state", () => {
   );
 });
 
+test("undo restores only the selected recovery decision", () => {
+  const changed = recoveryReviewReducer(createInitialRecoveryReviewState(bundle), {
+    type: "decide",
+    candidate_id: "recovery-antelope-3",
+    decision: "rejected",
+  });
+  const restored = recoveryReviewReducer(changed, {
+    type: "restore_candidate",
+    bundle,
+    candidate_id: "recovery-antelope-3",
+  });
+  assert.equal(restored.decisions["recovery-antelope-3"], "pending");
+  assert.deepEqual(restored.label_decisions, changed.label_decisions);
+});
+
 test("restore accepts only current candidate IDs and valid decisions", () => {
   const restored = recoveryReviewReducer(createInitialRecoveryReviewState(bundle), {
     type: "restore",

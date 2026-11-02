@@ -7,8 +7,25 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import {
+  ArrowCounterClockwise,
+  ArrowClockwise,
+  ArrowsOut,
+  Eye,
+  EyeSlash,
+  Path,
+  Scan,
+  SlidersHorizontal,
+  SpeakerHigh,
+  SpeakerSlash,
+  Stack,
+  Wrench,
+  Info,
+  X,
+} from "@phosphor-icons/react";
 
 import { buildEventCues } from "../../src/audio/cue-builder";
 import { planCueWindow } from "../../src/audio/scheduler";
@@ -39,7 +56,7 @@ import {
   type VisibleGeometry,
 } from "../../src/data/view-model";
 import { buildEventCsv } from "../../src/export/event-csv";
-import { buildTrackSummaryCsv } from "../../src/export/track-summary-csv";
+import { buildTrackSummaryCsv, trackMetrics } from "../../src/export/track-summary-csv";
 import { buildRecoveryCsv } from "../../src/export/recovery-csv";
 import { buildCorrespondenceAuditCsv } from "../../src/export/correspondence-audit-csv";
 import { buildDevelopmentEvidenceSummary } from "../../src/evaluation/evidence-summary";
@@ -100,6 +117,40 @@ type AudioScope =
   | { kind: "segment"; segmentId: string }
   | { kind: "event"; eventId: string }
   | { kind: "silent" };
+
+function HoverHelp({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="hover-help" tabIndex={0} aria-describedby={id}>
+      <Info size={20} aria-hidden="true" />
+      <span className="hover-help-label">{label}</span>
+      <div className="hover-help-content" id={id} role="tooltip">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+type ReviewQueueItem =
+  | { kind: "event"; id: string; start: number }
+  | { kind: "recovery"; id: string; start: number }
+  | { kind: "audit"; id: string; start: number };
+
+function InfoTip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <span className="info-tip" tabIndex={0} aria-label={label}>
+      <Info size={16} aria-hidden="true" />
+      <span role="tooltip">{children}</span>
+    </span>
+  );
+}
 
 type DisplayGeometry = Pick<
   VisibleGeometry,
@@ -220,6 +271,8 @@ export default function SavedAnalysisViewer() {
   const [missingAnimalLabel, setMissingAnimalLabel] = useState("");
   const [missingAnimalError, setMissingAnimalError] = useState("");
   const [missingAnimalReports, setMissingAnimalReports] = useState<MissingAnimalAnnotation[]>([]);
+  const [toolsTab, setToolsTab] = useState<"display" | "missed" | "recovery" | "rerun">("display");
+  const [tableView, setTableView] = useState<"events" | "tracks">("events");
   const [reviewState, dispatchReview] = useReducer(
     reviewReducer,
     EMPTY_REVIEW_STATE,
@@ -238,8 +291,8 @@ export default function SavedAnalysisViewer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const missingAnimalDragStartRef = useRef<{ x: number; y: number } | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
-  const recoveryMenuRef = useRef<HTMLDetailsElement>(null);
-  const auditMenuRef = useRef<HTMLDetailsElement>(null);
+  const toolsDialogRef = useRef<HTMLDialogElement>(null);
+  const settingsMenuRef = useRef<HTMLDetailsElement>(null);
   const timelineListRef = useRef<HTMLDivElement>(null);
   const timelineRowRefs = useRef(new Map<string, HTMLDivElement>());
   const labelInputRef = useRef<HTMLInputElement>(null);
@@ -347,6 +400,27 @@ export default function SavedAnalysisViewer() {
       : [],
     [correspondenceAudit],
   );
+  const reviewQueue = useMemo<ReviewQueueItem[]>(() => {
+    const events = [...(bundle?.events ?? [])]
+      .sort((left, right) => left.start_s - right.start_s || left.event_id.localeCompare(right.event_id))
+      .map((event) => ({ kind: "event" as const, id: event.event_id, start: event.start_s }));
+    const recoveries = [...(recovery?.candidates ?? [])]
+      .sort((left, right) => left.start_s - right.start_s || left.candidate_id.localeCompare(right.candidate_id))
+      .map((candidate) => ({ kind: "recovery" as const, id: candidate.candidate_id, start: candidate.start_s }));
+    const audits = correspondenceQueue
+      .map((item) => {
+        const candidate = correspondenceAudit?.candidate_segments.find((segment) => segment.segment_id === item.focus_segment_id);
+        const reference = bundle?.segments.find((segment) => segment.segment_id === item.focus_segment_id);
+        const start = candidate && correspondenceAudit
+          ? candidate.first_frame / correspondenceAudit.fps
+          : reference && bundle
+            ? segmentStartTime(reference, bundle.clip.processed_fps)
+            : 0;
+        return { kind: "audit" as const, id: item.id, start };
+      })
+      .sort((left, right) => left.start - right.start || left.id.localeCompare(right.id));
+    return [...events, ...recoveries, ...audits];
+  }, [bundle, correspondenceAudit, correspondenceQueue, recovery]);
   const selectedAuditItem = correspondenceQueue.find(
     (item) => item.id === selectedAuditItemId,
   ) ?? null;
@@ -356,6 +430,10 @@ export default function SavedAnalysisViewer() {
         ? createInitialReviewState(bundle)
         : reviewState,
     [bundle, reviewState],
+  );
+  const baselineReviewState = useMemo(
+    () => (bundle ? createInitialReviewState(bundle) : null),
+    [bundle],
   );
   const unexportedChangeCount = useMemo(
     () => reviewChangeCount(exportedReviewState, activeReviewState),
@@ -403,6 +481,10 @@ export default function SavedAnalysisViewer() {
         ? createInitialRecoveryReviewState(recovery)
         : recoveryReviewState,
     [recovery, recoveryReviewState],
+  );
+  const baselineRecoveryReviewState = useMemo(
+    () => (recovery ? createInitialRecoveryReviewState(recovery) : null),
+    [recovery],
   );
   const activeCorrespondenceAuditReviewState = useMemo(
     () =>
@@ -595,9 +677,26 @@ export default function SavedAnalysisViewer() {
   const selectedEventReview = selectedEvent
     ? activeReviewState.event_reviews[selectedEvent.event_id]
     : null;
+  const selectedEventBaselineDecision = selectedEvent
+    ? baselineReviewState?.event_reviews[selectedEvent.event_id]?.decision ??
+      selectedEvent.decision
+    : null;
   const selectedLabelReview = selectedSegment
     ? activeReviewState.label_reviews[selectedSegment.segment_id]
     : null;
+  const selectedRecoveryBaselineDecision = selectedRecovery
+    ? baselineRecoveryReviewState?.decisions[selectedRecovery.candidate_id] ??
+      "pending"
+    : null;
+  const selectedLabelAction = selectedLabelReview?.correction_note?.startsWith(
+    "Corrected during",
+  )
+      ? "corrected"
+      : selectedLabelReview?.correction_note?.startsWith("Confirmed during")
+        ? "confirmed"
+        : selectedLabelReview?.correction_note === "Reviewer selected can't tell."
+          ? "uncertain"
+          : null;
   const baseAudioCues = useMemo(
     () =>
       bundle
@@ -987,6 +1086,17 @@ export default function SavedAnalysisViewer() {
   }, []);
 
   useEffect(() => {
+    function closeControlMenus(event: PointerEvent) {
+      const target = event.target as Node;
+      for (const menu of [settingsMenuRef.current]) {
+        if (menu?.open && !menu.contains(target)) menu.open = false;
+      }
+    }
+    document.addEventListener("pointerdown", closeControlMenus);
+    return () => document.removeEventListener("pointerdown", closeControlMenus);
+  }, []);
+
+  useEffect(() => {
     const activeTrackId = selectedRecoveryId ?? selectedSegmentId;
     if (!activeTrackId) return;
     const list = timelineListRef.current;
@@ -1138,7 +1248,7 @@ export default function SavedAnalysisViewer() {
         : candidate.start_s;
       setCurrentTime(video.currentTime);
     }
-    if (recoveryMenuRef.current) recoveryMenuRef.current.open = false;
+    toolsDialogRef.current?.close();
     focusWorkbench();
   }
 
@@ -1191,7 +1301,7 @@ export default function SavedAnalysisViewer() {
           );
       setCurrentTime(video.currentTime);
     }
-    if (auditMenuRef.current) auditMenuRef.current.open = false;
+    toolsDialogRef.current?.close();
     setAnnouncement(`${item.title}. Audit evidence only; choose keep, dismiss, or can’t tell.`);
     focusWorkbench();
   }
@@ -1287,6 +1397,12 @@ export default function SavedAnalysisViewer() {
     );
   }
 
+  function restoreSelectedEvent() {
+    if (!bundle || !selectedEvent) return;
+    dispatchReview({ type: "restore_event", bundle, event_id: selectedEvent.event_id });
+    setAnnouncement("Event decision restored to the saved analysis.");
+  }
+
   function decideBulkEvents(
     decision: "accepted" | "rejected" | "uncertain",
   ) {
@@ -1346,6 +1462,16 @@ export default function SavedAnalysisViewer() {
     setAnnouncement(`Recovery track ${decision}.`);
   }
 
+  function restoreSelectedRecovery() {
+    if (!recovery || !selectedRecovery) return;
+    dispatchRecoveryReview({
+      type: "restore_candidate",
+      bundle: recovery,
+      candidate_id: selectedRecovery.candidate_id,
+    });
+    setAnnouncement("Recovery decision restored to the saved analysis.");
+  }
+
   function navigateRecovery(direction: -1 | 1) {
     if (!recovery || recovery.candidates.length === 0) return;
     const currentIndex = recovery.candidates.findIndex(
@@ -1396,6 +1522,38 @@ export default function SavedAnalysisViewer() {
       Math.max(0, currentIndex + direction),
     );
     selectEvent(bundle.events[nextIndex]);
+  }
+
+  function selectReviewQueueItem(item: ReviewQueueItem) {
+    if (item.kind === "event") {
+      const event = bundle?.events.find((candidate) => candidate.event_id === item.id);
+      if (event) selectEvent(event);
+      return;
+    }
+    if (item.kind === "recovery") {
+      const candidate = recovery?.candidates.find((entry) => entry.candidate_id === item.id);
+      if (candidate) selectRecoveryCandidate(candidate);
+      return;
+    }
+    const auditItem = correspondenceQueue.find((entry) => entry.id === item.id);
+    if (auditItem) selectCorrespondenceAuditItem(auditItem);
+  }
+
+  function navigateReview(direction: -1 | 1) {
+    if (reviewQueue.length === 0) return;
+    const currentKind = selectedAuditItem
+      ? "audit"
+      : selectedRecovery
+        ? "recovery"
+        : "event";
+    const currentId = selectedAuditItem?.id ?? selectedRecovery?.candidate_id ?? selectedEvent?.event_id;
+    const currentIndex = reviewQueue.findIndex(
+      (item) => item.kind === currentKind && item.id === currentId,
+    );
+    if (currentIndex < 0) return;
+    const nextIndex = currentIndex + direction;
+    if (nextIndex < 0 || nextIndex >= reviewQueue.length) return;
+    selectReviewQueueItem(reviewQueue[nextIndex]);
   }
 
   function downloadCsv() {
@@ -1488,6 +1646,7 @@ export default function SavedAnalysisViewer() {
     setMissingAnimalBox(null);
     setMissingAnimalError("");
     setMissingAnimalMode(true);
+    toolsDialogRef.current?.close();
     setAnnouncement("Missing-animal report mode. Drag a box around the visible animal.");
   }
 
@@ -1594,18 +1753,23 @@ export default function SavedAnalysisViewer() {
       const target = event.target;
       if (
         target instanceof HTMLInputElement ||
-        target instanceof HTMLSelectElement ||
         target instanceof HTMLTextAreaElement
       ) {
+        return;
+      }
+      if (missingAnimalMode) {
+        if (event.key === "Escape") {
+          cancelMissingAnimalReport();
+          event.preventDefault();
+        }
         return;
       }
       if (selectedAuditItem) {
         const auditKey = event.key.toLowerCase();
         if (event.key === "Escape") {
-          if (auditMenuRef.current) auditMenuRef.current.open = false;
           clearCorrespondenceAuditSelection();
-        } else if (auditKey === "j") navigateCorrespondenceAudit(1);
-        else if (auditKey === "k") navigateCorrespondenceAudit(-1);
+        } else if (auditKey === "l") navigateReview(1);
+        else if (auditKey === "k") navigateReview(-1);
         else if (auditKey === "a") decideSelectedCorrespondenceAudit("kept");
         else if (auditKey === "r") decideSelectedCorrespondenceAudit("dismissed");
         else if (auditKey === "u") decideSelectedCorrespondenceAudit("uncertain");
@@ -1614,12 +1778,10 @@ export default function SavedAnalysisViewer() {
         return;
       }
       const key = event.key.toLowerCase();
-      if (key === "j") {
-        if (selectedRecovery) navigateRecovery(1);
-        else navigateEvent(1);
+      if (key === "l") {
+        navigateReview(1);
       } else if (key === "k") {
-        if (selectedRecovery) navigateRecovery(-1);
-        else navigateEvent(-1);
+        navigateReview(-1);
       } else if (event.shiftKey && key === "a" && selectedEventIds.size > 0) {
         decideBulkEvents("accepted");
       } else if (key === "a") {
@@ -1688,16 +1850,6 @@ export default function SavedAnalysisViewer() {
     },
     { proposed: 0, accepted: 0, rejected: 0, uncertain: 0 },
   );
-  const labelReviewCounts = readyBundle.segments.reduce(
-    (counts, segment) => {
-      const decision = activeReviewState.label_reviews[segment.segment_id]?.decision ?? "proposed";
-      if (decision === "accepted") counts.reviewed += 1;
-      else counts.open += 1;
-      return counts;
-    },
-    { reviewed: 0, open: 0 },
-  );
-
   const timelinePanel = (
     <section
       className="timeline-section"
@@ -1720,16 +1872,7 @@ export default function SavedAnalysisViewer() {
       </div>
       <div className="review-progress-strip" aria-label="Review progress">
         <span>
-          <strong>Events</strong> A {eventReviewCounts.accepted} · R {eventReviewCounts.rejected} · ? {eventReviewCounts.uncertain} · open {eventReviewCounts.proposed}
-        </span>
-        <span>
-          <strong>Labels</strong> reviewed {labelReviewCounts.reviewed} · open {labelReviewCounts.open}
-        </span>
-        <span>
-          <strong>Recovery</strong> accepted {acceptedRecoveryCandidates.length}
-        </span>
-        <span>
-          <strong>Rerun additions</strong> kept {keptAuditAdditions.length}
+          <strong>Events</strong> Accepted {eventReviewCounts.accepted} · Rejected {eventReviewCounts.rejected} · Unsure {eventReviewCounts.uncertain} · Open {eventReviewCounts.proposed}
         </span>
       </div>
       <div className="timeline-list" ref={timelineListRef}>
@@ -1907,33 +2050,26 @@ export default function SavedAnalysisViewer() {
     </section>
   );
 
-  const recoveryAuditMenu = (
-    <details
-      className="recovery-menu"
-      ref={recoveryMenuRef}
-      onToggle={(event) => {
-        if (event.currentTarget.open && auditMenuRef.current) {
-          auditMenuRef.current.open = false;
-        }
-      }}
-    >
-      <summary>
+  const recoveryToolsPanel = (
+    <section className="recovery-tools-panel" aria-labelledby="recovery-tools-heading">
+      <div className="tools-panel-heading">
         <span>
-          <strong>Recovery candidates</strong>
+          <strong id="recovery-tools-heading">Recovery candidates</strong>
           <small>Precomputed supplemental SAM tracks</small>
         </span>
         <span className="handwritten">
           {reviewedRecoveryCount(activeRecoveryReviewState)}/
           {loadState.recovery.candidates.length}
         </span>
-      </summary>
+      </div>
       <div className="recovery-menu-panel">
-        <p>
-          These candidates came from separate targeted SAM runs after the generic
-          pass missed animals. Accepting a track adds it to the Reviewed additions
-          video layer, the timeline, and the reviewed-track CSV. It does not create
-          events or merge animal identities.
-        </p>
+        <HoverHelp id="recovery-candidates-help" label="What are these?">
+          <p>
+            Separate targeted SAM runs found these additional tracks. Keeping one
+            adds presence evidence to Reviewed additions and the track CSV; it does
+            not create an event or merge animal identities.
+          </p>
+        </HoverHelp>
         <div className="recovery-grid">
           {loadState.recovery.candidates.map((candidate) => {
             const decision =
@@ -1950,11 +2086,10 @@ export default function SavedAnalysisViewer() {
                 aria-pressed={candidate.candidate_id === selectedRecoveryId}
                 onClick={() => selectRecoveryCandidate(candidate)}
               >
-                <span>{humanizeIdentifier(candidate.suggested_label)}</span>
-                <strong>{candidate.candidate_id}</strong>
-                <small>
-                  {formatTime(candidate.start_s)}–{formatTime(candidate.end_s)} · {decision}
-                </small>
+                <time>{formatTime(candidate.start_s)}</time>
+                <strong>{candidate.candidate_id} · possible {humanizeIdentifier(candidate.suggested_label)}</strong>
+                <small>{decision}</small>
+                <span>Review ›</span>
               </button>
             );
           })}
@@ -1968,7 +2103,7 @@ export default function SavedAnalysisViewer() {
           </button>
         </div>
       </div>
-    </details>
+    </section>
   );
 
   const auditCounts = correspondenceQueue.reduce(
@@ -1986,26 +2121,18 @@ export default function SavedAnalysisViewer() {
     { kind: "candidate_unmatched", label: "Rerun only" },
     { kind: "possible_duplicate", label: "Possible overlap" },
   ];
-  const correspondenceAuditMenu = correspondenceAudit && correspondenceQueue.length > 0 ? (
-    <details
-      className="correspondence-audit-menu"
-      ref={auditMenuRef}
-      onToggle={(event) => {
-        if (event.currentTarget.open) {
-          if (recoveryMenuRef.current) recoveryMenuRef.current.open = false;
-        }
-      }}
-    >
-      <summary>
+  const correspondenceAuditPanel = correspondenceAudit && correspondenceQueue.length > 0 ? (
+    <section className="correspondence-audit-menu" aria-labelledby="rerun-tools-heading">
+      <div className="tools-panel-heading">
         <span>
-          <strong>Generic SAM rerun audit</strong>
+          <strong id="rerun-tools-heading">Generic SAM rerun audit</strong>
           <small>Compare runs · decisions stay separate</small>
         </span>
         <span className="audit-count">
           {reviewedCorrespondenceAuditCount(activeCorrespondenceAuditReviewState)}/
           {correspondenceQueue.length}
         </span>
-      </summary>
+      </div>
       <div className="correspondence-audit-panel">
         <div className="audit-tabs" role="tablist" aria-label="Generic rerun audit filters">
           {auditFilterLabels.map((filter) => (
@@ -2083,7 +2210,7 @@ export default function SavedAnalysisViewer() {
           </button>
         </div>
       </div>
-    </details>
+    </section>
   ) : null;
 
   return (
@@ -2347,139 +2474,114 @@ export default function SavedAnalysisViewer() {
                       : "selected segment not visible at this frame"}
                 </div>
               )}
-            </div>
-            <div className="video-transport" aria-label="Video navigation controls">
-              <button type="button" onClick={() => skipVideo(-2)}>
-                Back 2s
-              </button>
-              <button type="button" onClick={() => skipVideo(2)}>
-                Forward 2s
-              </button>
-              <div className="playback-rates" aria-label="Playback speed">
-                {[1, 2, 5, 10].map((rate) => (
+              {missingAnimalMode && (
+                <div className="missing-animal-tool" role="region" aria-label="Report missed animal">
+                  <p>Frame {currentFrame}: drag a box around one visible animal.</p>
+                  <label>
+                    Broad label <span>(optional)</span>
+                    <input
+                      type="text"
+                      list="missing-animal-label-suggestions"
+                      maxLength={80}
+                      value={missingAnimalLabel}
+                      placeholder="e.g. antelope"
+                      onChange={(event) => setMissingAnimalLabel(event.currentTarget.value)}
+                    />
+                    <datalist id="missing-animal-label-suggestions">
+                      {missingAnimalLabelSuggestions.map((label) => (
+                        <option value={label} key={label} />
+                      ))}
+                    </datalist>
+                  </label>
                   <button
-                    className={playbackRate === rate ? "is-active" : undefined}
+                    className="primary-action"
                     type="button"
-                    aria-pressed={playbackRate === rate}
-                    onClick={() => changePlaybackRate(rate)}
-                    key={rate}
+                    disabled={!missingAnimalBox}
+                    onClick={queueMissingAnimalAnnotation}
                   >
-                    {rate}×
+                    Add
                   </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                aria-pressed={mediaExpanded}
-                onClick={() => setMediaExpanded((expanded) => !expanded)}
-              >
-                {mediaExpanded ? "Balanced split" : "Larger video"}
-              </button>
-              <button
-                type="button"
-                aria-label={workspaceFullscreen
-                  ? "Exit video and evidence fullscreen"
-                  : "Open video and evidence in fullscreen"}
-                onClick={() => void toggleWorkspaceFullscreen()}
-              >
-                {workspaceFullscreen ? "Exit full screen" : "Full screen"}
-              </button>
-              {!missingAnimalMode && (
-                <button type="button" onClick={beginMissingAnimalReport}>
-                  Report missed animal
-                </button>
+                  <button type="button" onClick={cancelMissingAnimalReport}>Cancel</button>
+                  <small>Saved locally until exported as one recovery batch.</small>
+                  {missingAnimalError && <strong role="alert">{missingAnimalError}</strong>}
+                </div>
               )}
             </div>
-            {missingAnimalReports.length > 0 && !missingAnimalMode && (
-              <div className="missing-animal-queue" aria-label="Missing-animal report queue">
-                <strong>
-                  {missingAnimalReports.length} missed animal{missingAnimalReports.length === 1 ? "" : "s"} queued locally
-                </strong>
-                <button type="button" onClick={downloadMissingAnimalBatch}>
-                  Download batch JSON
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMissingAnimalReports((current) => current.slice(0, -1));
-                    setAnnouncement("Last missing-animal report removed from the local queue.");
-                  }}
-                >
-                  Undo last
-                </button>
-              </div>
-            )}
-            {missingAnimalMode && (
-              <div className="missing-animal-tool">
-                <p>
-                  Paused at frame {currentFrame}. Drag a box around one visible animal.
-                </p>
-                <label>
-                  Broad label <span>(optional)</span>
-                  <input
-                    type="text"
-                    list="missing-animal-label-suggestions"
-                    maxLength={80}
-                    value={missingAnimalLabel}
-                    placeholder="e.g. antelope"
-                    onChange={(event) => setMissingAnimalLabel(event.currentTarget.value)}
-                  />
-                  <datalist id="missing-animal-label-suggestions">
-                    {missingAnimalLabelSuggestions.map((label) => (
-                      <option value={label} key={label} />
-                    ))}
-                  </datalist>
-                </label>
-                <button
-                  className="primary-action"
-                  type="button"
-                  disabled={!missingAnimalBox}
-                  onClick={queueMissingAnimalAnnotation}
-                >
-                  Add to report queue
-                </button>
-                <button type="button" onClick={cancelMissingAnimalReport}>Cancel</button>
-                <small>
-                  Stored in this browser until you download one batch for a local
-                  targeted recovery run. Footage is not uploaded and the browser
-                  makes no model call.
-                </small>
-                {missingAnimalError && <strong role="alert">{missingAnimalError}</strong>}
-              </div>
-            )}
+            <div className="video-transport compact-transport" aria-label="Video and analysis controls">
+              <button
+                className="analyse-control"
+                type="button"
+                onClick={() => savedReplayPhase === "running" ? skipSavedReplay() : void startSavedReplay()}
+              >
+                <Scan size={18} aria-hidden="true" />
+                {savedReplayPhase === "running" ? "Skip replay" : savedReplayPhase === "idle" ? "Analyse" : "Replay analysis"}
+              </button>
+              <button className="icon-control" type="button" aria-label="Back 2 seconds" title="Back 2 seconds" onClick={() => skipVideo(-2)}>
+                <ArrowCounterClockwise size={20} aria-hidden="true" /><span>2s</span>
+              </button>
+              <button className="icon-control" type="button" aria-label="Forward 2 seconds" title="Forward 2 seconds" onClick={() => skipVideo(2)}>
+                <ArrowClockwise size={20} aria-hidden="true" /><span>2s</span>
+              </button>
+              <button
+                className="icon-control"
+                type="button"
+                aria-label="Open review tools"
+                title="Review tools"
+                onClick={() => {
+                  if (settingsMenuRef.current) settingsMenuRef.current.open = false;
+                  toolsDialogRef.current?.showModal();
+                }}
+              >
+                <Wrench size={21} aria-hidden="true" />
+              </button>
+              <details
+                className="compact-control-menu settings-control"
+                ref={settingsMenuRef}
+              >
+                <summary aria-label="Open playback and audio settings" title="Playback and audio settings">
+                  <SlidersHorizontal size={21} aria-hidden="true" />
+                </summary>
+                <div className="compact-menu-panel settings-panel">
+                  <button
+                    className={soundEnabled ? "sound-toggle is-on" : "sound-toggle"}
+                    type="button"
+                    aria-pressed={soundEnabled}
+                    onClick={() => void toggleSound()}
+                  >
+                    {soundEnabled ? <SpeakerHigh size={17} aria-hidden="true" /> : <SpeakerSlash size={17} aria-hidden="true" />}
+                    Sound {soundEnabled ? "on" : "off"}
+                  </button>
+                  <label>
+                    Speed <output>{playbackRate}×</output>
+                    <input type="range" min="0.25" max="10" step="0.25" value={playbackRate} onChange={(event) => changePlaybackRate(event.currentTarget.valueAsNumber)} />
+                  </label>
+                  <label>
+                    Volume <output>{Math.round(scoreVolume * 100)}%</output>
+                    <input type="range" min="0" max="1" step="0.05" value={scoreVolume} onChange={(event) => changeScoreVolume(event.currentTarget.valueAsNumber)} />
+                  </label>
+                  <fieldset className="cue-filters">
+                    <legend>Audio cues</legend>
+                    <label><input type="checkbox" checked={appearanceSoundEnabled} onChange={(event) => setAppearanceSoundEnabled(event.currentTarget.checked)} /> Appearance</label>
+                    <label><input type="checkbox" checked={disappearanceSoundEnabled} onChange={(event) => setDisappearanceSoundEnabled(event.currentTarget.checked)} /> Disappearance</label>
+                  </fieldset>
+                </div>
+              </details>
+              <button
+                className="icon-control"
+                type="button"
+                aria-label={workspaceFullscreen ? "Exit review workspace full screen" : "Open review workspace full screen"}
+                title={workspaceFullscreen ? "Exit full screen" : "Full screen"}
+                onClick={() => void toggleWorkspaceFullscreen()}
+              >
+                <ArrowsOut size={21} aria-hidden="true" />
+              </button>
+            </div>
             <div className="photo-caption">
               <span>
                 {formatTime(readyBundle.clip.processed_duration_s)} analysed at{" "}
                 {readyBundle.clip.processed_fps} frames per second
               </span>
-              <div className="saved-replay-actions">
-                {savedReplayPhase === "running" ? (
-                  <>
-                    <span className="saved-replay-inline-status">
-                      Replaying saved analysis
-                    </span>
-                    <button type="button" onClick={skipSavedReplay}>Skip replay</button>
-                  </>
-                ) : (
-                  <button
-                    className="primary-action"
-                    type="button"
-                    onClick={() => void startSavedReplay()}
-                  >
-                    {savedReplayPhase === "idle" ? "Analyse" : "Replay analysis"}
-                  </button>
-                )}
-                {savedReplayPhase === "complete" && (
-                  <button
-                    className="secondary-action"
-                    type="button"
-                    aria-pressed={analysisVisible}
-                    onClick={() => setAnalysisVisible((visible) => !visible)}
-                  >
-                    {analysisVisible ? "Hide overlays" : "Show overlays"}
-                  </button>
-                )}
-              </div>
+              {savedReplayPhase === "running" && <span className="saved-replay-inline-status">Replaying saved analysis</span>}
             </div>
             <div className="segment-focus-bar">
               <label htmlFor="segment-focus">Follow segment</label>
@@ -2487,12 +2589,14 @@ export default function SavedAnalysisViewer() {
                 id="segment-focus"
                 value={
                   selectedAuditItem
-                    ? "__audit__"
+                    ? `audit:${selectedAuditItem.id}`
                     : selectedRecovery
-                    ? `__recovery__:${selectedRecovery.candidate_id}`
+                    ? `recovery:${selectedRecovery.candidate_id}`
                     : showAllSegments
                       ? "__all__"
-                      : selectedSegmentId ?? ""
+                      : selectedEventId
+                        ? `event:${selectedEventId}`
+                        : ""
                 }
                 onChange={(event) => {
                   const value = event.currentTarget.value;
@@ -2503,183 +2607,87 @@ export default function SavedAnalysisViewer() {
                     setShowSelectedTrail(false);
                     setAnalysisVisible(true);
                     audioScopeRef.current = { kind: "all" };
-                  } else if (value.startsWith("__recovery__:")) {
-                    const candidateId = value.slice("__recovery__:".length);
+                  } else if (value.startsWith("event:")) {
+                    const eventId = value.slice("event:".length);
+                    const candidateEvent = readyBundle.events.find((item) => item.event_id === eventId);
+                    if (candidateEvent) selectEvent(candidateEvent);
+                  } else if (value.startsWith("recovery:")) {
+                    const candidateId = value.slice("recovery:".length);
                     const candidate = recovery?.candidates.find(
                       (item) => item.candidate_id === candidateId,
                     );
                     if (candidate) selectRecoveryCandidate(candidate);
+                  } else if (value.startsWith("audit:")) {
+                    const itemId = value.slice("audit:".length);
+                    const auditItem = correspondenceQueue.find((item) => item.id === itemId);
+                    if (auditItem) selectCorrespondenceAuditItem(auditItem);
                   } else {
                     selectSegment(value);
                   }
+                  event.currentTarget.blur();
                 }}
               >
-                {selectedAuditItem && (
-                  <option value="__audit__" disabled>
-                    Audit · {selectedAuditItem.focus_segment_id}
-                  </option>
-                )}
                 <option value="__all__">View all segments</option>
-                {recovery && [...recovery.candidates]
-                  .sort(
-                    (left, right) =>
-                      left.start_s - right.start_s ||
-                      left.candidate_id.localeCompare(right.candidate_id),
-                  )
-                  .map((candidate) => (
-                    <option
-                      value={`__recovery__:${candidate.candidate_id}`}
-                      key={candidate.candidate_id}
-                    >
-                      Recovery · {humanizeIdentifier(candidate.suggested_label)} · {formatTime(candidate.start_s)} · {candidate.candidate_id}
-                    </option>
-                  ))}
-                {[...readyBundle.segments]
-                  .sort(
-                    (left, right) =>
-                      left.start_s - right.start_s ||
-                      left.segment_id.localeCompare(right.segment_id),
-                  )
-                  .map((segment) => {
-                    const label = currentReviewedLabel(
-                      readyBundle,
-                      activeReviewState,
-                      segment.segment_id,
-                    );
-                    return (
-                      <option value={segment.segment_id} key={segment.segment_id}>
-                        {segment.segment_id} · {humanizeIdentifier(label.label)} · {formatTime(segment.start_s)}–{formatTime(segment.end_s)}
-                      </option>
-                    );
-                  })}
+                <optgroup label="Events · chronological">
+                  {[...readyBundle.events]
+                    .sort(
+                      (left, right) =>
+                        left.start_s - right.start_s ||
+                        left.event_id.localeCompare(right.event_id),
+                    )
+                    .map((candidateEvent) => {
+                      const label = currentReviewedLabel(
+                        readyBundle,
+                        activeReviewState,
+                        candidateEvent.segment_id,
+                      );
+                      return (
+                        <option value={`event:${candidateEvent.event_id}`} key={candidateEvent.event_id}>
+                          {formatTime(candidateEvent.start_s)} · {candidateEvent.segment_id} · {eventTitle(candidateEvent)} · {humanizeIdentifier(label.label)}
+                        </option>
+                      );
+                    })}
+                </optgroup>
+                {recovery && (
+                  <optgroup label="Recovery candidates · chronological">
+                    {[...recovery.candidates]
+                      .sort(
+                        (left, right) =>
+                          left.start_s - right.start_s ||
+                          left.candidate_id.localeCompare(right.candidate_id),
+                      )
+                      .map((candidate) => (
+                        <option
+                          value={`recovery:${candidate.candidate_id}`}
+                          key={candidate.candidate_id}
+                        >
+                          {formatTime(candidate.start_s)} · {candidate.candidate_id} · {humanizeIdentifier(candidate.suggested_label)}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+                {correspondenceQueue.length > 0 && (
+                  <optgroup label="Rerun audit · chronological">
+                    {reviewQueue
+                      .filter((item): item is Extract<ReviewQueueItem, { kind: "audit" }> => item.kind === "audit")
+                      .map((item) => {
+                        const auditItem = correspondenceQueue.find((entry) => entry.id === item.id);
+                        return auditItem ? (
+                          <option value={`audit:${item.id}`} key={item.id}>
+                            {formatTime(item.start)} · {auditItem.focus_segment_id} · {auditItem.title}
+                          </option>
+                        ) : null;
+                      })}
+                  </optgroup>
+                )}
               </select>
-              <button
-                className="path-toggle"
-                type="button"
-                aria-pressed={showSelectedTrail}
-                disabled={Boolean(selectedAuditItem) || (!selectedSegmentId && !selectedRecovery)}
-                onClick={() => {
-                  setAnalysisVisible(true);
-                  setShowAllSegments(false);
-                  setShowSelectedTrail((visible) => !visible);
-                }}
-              >
-                {showSelectedTrail ? "Hide trail" : "Show fading trail"}
-              </button>
-              <button
-                className="path-toggle"
-                type="button"
-                aria-pressed={showAllSegments && showReviewedAdditions}
-                onClick={() => {
-                  const next = !(showAllSegments && showReviewedAdditions);
-                  setShowReviewedAdditions(next);
-                  setAnalysisVisible(true);
-                  if (next) {
-                    setSelectedAuditItemId(null);
-                    setSelectedRecoveryId(null);
-                    setShowAllSegments(true);
-                    setShowSelectedTrail(false);
-                    audioScopeRef.current = { kind: "all" };
-                  }
-                  setAnnouncement(`Reviewed additions ${next ? "shown" : "hidden"}.`);
-                }}
-              >
-                {showAllSegments && showReviewedAdditions
-                  ? "Hide reviewed additions"
-                  : "Show reviewed additions"}
-              </button>
-              <span>
-                {selectedAuditItem
-                  ? "Audit view shows one box only. Trails and review shortcuts are disabled."
-                  : showSelectedTrail
-                  ? "The observed journey draws with the animal; no future path is shown, and focus clears when the track is absent."
-                  : showAllSegments
-                  ? `Primary tracks plus ${showReviewedAdditions ? `${acceptedRecoveryCandidates.length + keptAuditAdditions.length} reviewed additions` : "no supplemental additions"} are shown.`
-                  : selectedRecovery
-                    ? "Only this unmerged recovery candidate is shown."
-                  : "Only this segment’s saved box is shown."}
-              </span>
             </div>
-            <div className="sound-strip" aria-live="polite">
-              <div className="sound-controls">
-                <button
-                  className={soundEnabled ? "sound-toggle is-on" : "sound-toggle"}
-                  type="button"
-                  aria-pressed={soundEnabled}
-                  onClick={() => void toggleSound()}
-                >
-                  <span className="status-dot" aria-hidden="true" />
-                  Sound {soundEnabled ? "on" : "off"}
-                </button>
-                <label className="score-volume">
-                  <span>Sound volume {Math.round(scoreVolume * 100)}%</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={scoreVolume}
-                    aria-label="Score volume"
-                    onChange={(event) =>
-                      changeScoreVolume(event.currentTarget.valueAsNumber)
-                    }
-                  />
-                </label>
-                <fieldset className="cue-filters">
-                  <legend>Audible events</legend>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={appearanceSoundEnabled}
-                      onChange={(event) =>
-                        setAppearanceSoundEnabled(event.currentTarget.checked)
-                      }
-                    />
-                    Appearance
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={disappearanceSoundEnabled}
-                      onChange={(event) =>
-                        setDisappearanceSoundEnabled(event.currentTarget.checked)
-                      }
-                    />
-                    Disappearance
-                  </label>
-                </fieldset>
-              </div>
-              <details className="help-disclosure">
-                <summary title="Audio cue guide">
-                  <span aria-hidden="true">i</span>
-                  Audio cue guide
-                </summary>
-                <p>
-                  Bright rising notes mark appearances; lower fading notes mark
-                  disappearances. Stereo position follows the saved box location.
-                  Accepted events sound stronger; rejected and can’t-tell events are
-                  silent.
-                </p>
-              </details>
-              {suppressedCueCount > 0 && (
-                <span className="sound-omission">
-                  {suppressedCueCount} crowded cue
-                  {suppressedCueCount === 1 ? "" : "s"} omitted
-                </span>
-              )}
-              {audioUnavailable && (
-                <span className="sound-omission">Audio is unavailable in this browser.</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="workbench-side">
-        <aside className="review-sheet" aria-labelledby="review-heading">
-          <div className="audit-menu-row">
-            {recoveryAuditMenu}
-            {correspondenceAuditMenu}
-          </div>
+            {(suppressedCueCount > 0 || audioUnavailable) && (
+              <p className="sound-omission" aria-live="polite">
+                {audioUnavailable ? "Audio is unavailable in this browser." : `${suppressedCueCount} crowded cue${suppressedCueCount === 1 ? "" : "s"} omitted`}
+              </p>
+            )}
+            <aside className={`review-sheet ${missingAnimalMode ? "is-reporting-missed" : ""}`} aria-labelledby="review-heading">
           <p className="eyebrow">
             {selectedAuditItem
               ? "Generic rerun audit"
@@ -2703,30 +2711,6 @@ export default function SavedAnalysisViewer() {
               </p>
               <p className={`review-status ${selectedAuditDecision}`}>
                 Audit finding {selectedAuditDecision}
-              </p>
-              <p className="review-copy">{selectedAuditItem.detail}</p>
-              <dl className="event-facts">
-                <div>
-                  <dt>Evidence</dt>
-                  <dd>
-                    {selectedAuditItem.focus_source === "generic_rerun"
-                      ? "Generic rerun box"
-                      : "Reviewed saved segment"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Finding</dt>
-                  <dd>{auditFilterLabels.find((filter) => filter.kind === selectedAuditItem.kind)?.label}</dd>
-                </div>
-                <div>
-                  <dt>Identity</dt>
-                  <dd>Not linked or merged</dd>
-                </div>
-              </dl>
-              <p className="review-instruction">
-                {selectedAuditItem.kind === "candidate_unmatched"
-                  ? "Keep adds this box-only track to Reviewed additions, the timeline, and the reviewed-track CSV. It does not create events, confirm species, or merge identity."
-                  : "Keep retains this audit finding only. Possible overlap and missing-reference findings do not add or merge a track."}
               </p>
               <div className="decision-row">
                 <button
@@ -2752,13 +2736,40 @@ export default function SavedAnalysisViewer() {
                 </button>
               </div>
               <div className="review-navigation">
-                <button type="button" onClick={() => navigateCorrespondenceAudit(-1)}>
+                <button type="button" onClick={() => navigateReview(-1)}>
                   Previous <span aria-hidden="true">(K)</span>
                 </button>
-                <button type="button" onClick={() => navigateCorrespondenceAudit(1)}>
-                  Next <span aria-hidden="true">(J)</span>
+                <span className={`inline-review-status ${selectedAuditDecision}`}>
+                  {selectedAuditDecision}
+                </span>
+                <button type="button" onClick={() => navigateReview(1)}>
+                  Next <span aria-hidden="true">(L)</span>
                 </button>
               </div>
+              <p className="review-copy">{selectedAuditItem.detail}</p>
+              <dl className="event-facts">
+                <div>
+                  <dt>Evidence</dt>
+                  <dd>
+                    {selectedAuditItem.focus_source === "generic_rerun"
+                      ? "Generic rerun box"
+                      : "Reviewed saved segment"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Finding</dt>
+                  <dd>{auditFilterLabels.find((filter) => filter.kind === selectedAuditItem.kind)?.label}</dd>
+                </div>
+                <div>
+                  <dt>Identity</dt>
+                  <dd>Not linked or merged</dd>
+                </div>
+              </dl>
+              <p className="review-instruction">
+                {selectedAuditItem.kind === "candidate_unmatched"
+                  ? "Keep adds this box-only track to Reviewed additions, the timeline, and the reviewed-track CSV. It does not create events, confirm species, or merge identity."
+                  : "Keep retains this audit finding only. Possible overlap and missing-reference findings do not add or merge a track."}
+              </p>
               <button
                 className="wide-button"
                 type="button"
@@ -2779,11 +2790,31 @@ export default function SavedAnalysisViewer() {
               <p className={`review-status ${activeRecoveryReviewState.decisions[selectedRecovery.candidate_id]}`}>
                 Candidate {activeRecoveryReviewState.decisions[selectedRecovery.candidate_id]}
               </p>
-              <details className="help-disclosure review-help">
-                <summary title="Recovery review guidance">
-                  <span aria-hidden="true">i</span>
-                  Review guidance
-                </summary>
+              <div className="review-action-bar">
+                <button className="replay-context-button" type="button" aria-label="Replay candidate with context" title="Replay candidate with context" onClick={replaySelectedRecovery}>
+                  <ArrowCounterClockwise size={20} aria-hidden="true" /><span>Replay</span>
+                </button>
+                <div className="decision-row">
+                  <button className={activeRecoveryReviewState.decisions[selectedRecovery.candidate_id] === "accepted" ? "decision-active" : undefined} type="button" onClick={() => decideSelectedRecovery("accepted")}>Accept <span aria-hidden="true">(A)</span></button>
+                  <button className={activeRecoveryReviewState.decisions[selectedRecovery.candidate_id] === "rejected" ? "decision-active" : undefined} type="button" onClick={() => decideSelectedRecovery("rejected")}>Reject <span aria-hidden="true">(R)</span></button>
+                  <button className={activeRecoveryReviewState.decisions[selectedRecovery.candidate_id] === "uncertain" ? "decision-active uncertain" : undefined} type="button" onClick={() => decideSelectedRecovery("uncertain")}>Unsure <span aria-hidden="true">(U)</span></button>
+                </div>
+              </div>
+              <div className="review-navigation">
+                <button type="button" onClick={() => navigateReview(-1)}>
+                  Previous <span aria-hidden="true">(K)</span>
+                </button>
+                <span className={`inline-review-status ${activeRecoveryReviewState.decisions[selectedRecovery.candidate_id]}`}>
+                  {activeRecoveryReviewState.decisions[selectedRecovery.candidate_id]}
+                  {activeRecoveryReviewState.decisions[selectedRecovery.candidate_id] !== selectedRecoveryBaselineDecision && (
+                    <button type="button" onClick={restoreSelectedRecovery}>Undo</button>
+                  )}
+                </span>
+                <button type="button" onClick={() => navigateReview(1)}>
+                  Next <span aria-hidden="true">(L)</span>
+                </button>
+              </div>
+              <HoverHelp id="recovery-review-guidance" label="Review guidance">
                 <div>
                   <p className="review-copy">
                     {selectedRecovery.source_prompt === "reviewer_box"
@@ -2796,7 +2827,7 @@ export default function SavedAnalysisViewer() {
                     label.
                   </p>
                 </div>
-              </details>
+              </HoverHelp>
               <dl className="event-facts">
                 <div>
                   <dt>Prompt</dt>
@@ -2817,7 +2848,8 @@ export default function SavedAnalysisViewer() {
                   .join(", ")}.
               </p>
               {selectedRecoveryProposal && (
-                <div className="label-editor">
+                <details className="label-editor compact-label-editor">
+                  <summary>Review model label</summary>
                   <p className="eyebrow">Separate label review</p>
                   <p className={`review-status ${activeRecoveryReviewState.label_decisions[selectedRecovery.candidate_id]?.decision ?? "pending"}`}>
                     Label {activeRecoveryReviewState.label_decisions[selectedRecovery.candidate_id]?.decision ?? "pending"}
@@ -2846,59 +2878,13 @@ export default function SavedAnalysisViewer() {
                   <p className="small-note">
                     Accepting this label does not confirm an individual identity or an entry/exit event.
                   </p>
-                </div>
+                </details>
               )}
               {!selectedRecoveryProposal && selectedRecovery.source_prompt === "reviewer_box" && (
                 <p className="small-note">
                   No blind model label was generated for this reviewer-box recovery. The displayed broad label is a human annotation.
                 </p>
               )}
-              <button className="wide-button" type="button" onClick={replaySelectedRecovery}>
-                Replay candidate with 1-second context
-              </button>
-              <div className="decision-row">
-                <button
-                  className={
-                    activeRecoveryReviewState.decisions[selectedRecovery.candidate_id] === "accepted"
-                      ? "decision-active"
-                      : undefined
-                  }
-                  type="button"
-                  onClick={() => decideSelectedRecovery("accepted")}
-                >
-                  Keep candidate <span aria-hidden="true">(A)</span>
-                </button>
-                <button
-                  className={
-                    activeRecoveryReviewState.decisions[selectedRecovery.candidate_id] === "rejected"
-                      ? "decision-active"
-                      : undefined
-                  }
-                  type="button"
-                  onClick={() => decideSelectedRecovery("rejected")}
-                >
-                  Dismiss <span aria-hidden="true">(R)</span>
-                </button>
-                <button
-                  className={
-                    activeRecoveryReviewState.decisions[selectedRecovery.candidate_id] === "uncertain"
-                      ? "decision-active uncertain"
-                      : undefined
-                  }
-                  type="button"
-                  onClick={() => decideSelectedRecovery("uncertain")}
-                >
-                  Can’t tell <span aria-hidden="true">(U)</span>
-                </button>
-              </div>
-              <div className="review-navigation">
-                <button type="button" onClick={() => navigateRecovery(-1)}>
-                  Previous <span aria-hidden="true">(K)</span>
-                </button>
-                <button type="button" onClick={() => navigateRecovery(1)}>
-                  Next <span aria-hidden="true">(J)</span>
-                </button>
-              </div>
               <p className="small-note">
                 Recovery decisions are isolated from the completed event review and
                 stored in this reviewed demo; new changes also stay in this browser.
@@ -2912,11 +2898,31 @@ export default function SavedAnalysisViewer() {
               <p className={`review-status ${selectedEventReview?.decision ?? "proposed"}`}>
                 Event {selectedEventReview?.decision ?? "proposed"}
               </p>
-              <details className="help-disclosure review-help">
-                <summary title="Event review guidance">
-                  <span aria-hidden="true">i</span>
-                  Review guidance
-                </summary>
+              <div className="review-action-bar">
+                <button className="replay-context-button" type="button" aria-label="Replay 2 seconds either side" title="Replay 2 seconds either side" onClick={replaySelectedEvent}>
+                  <ArrowCounterClockwise size={20} aria-hidden="true" /><span>±2s</span>
+                </button>
+                <div className="decision-row">
+                  <button className={selectedEventReview?.decision === "accepted" ? "decision-active" : undefined} type="button" onClick={() => decideSelectedEvent("accepted")}>Accept <span aria-hidden="true">(A)</span></button>
+                  <button className={selectedEventReview?.decision === "rejected" ? "decision-active" : undefined} type="button" onClick={() => decideSelectedEvent("rejected")}>Reject <span aria-hidden="true">(R)</span></button>
+                  <button className={selectedEventReview?.decision === "uncertain" ? "decision-active uncertain" : undefined} type="button" onClick={() => decideSelectedEvent("uncertain")}>Unsure <span aria-hidden="true">(U)</span></button>
+                </div>
+              </div>
+              <div className="review-navigation">
+                <button type="button" onClick={() => navigateReview(-1)}>
+                  Previous <span aria-hidden="true">(K)</span>
+                </button>
+                <span className={`inline-review-status ${selectedEventReview?.decision ?? "proposed"}`}>
+                  {selectedEventReview?.decision ?? "proposed"}
+                  {(selectedEventReview?.decision ?? "proposed") !== selectedEventBaselineDecision && (
+                    <button type="button" onClick={restoreSelectedEvent}>Undo</button>
+                  )}
+                </span>
+                <button type="button" onClick={() => navigateReview(1)}>
+                  Next <span aria-hidden="true">(L)</span>
+                </button>
+              </div>
+              <HoverHelp id="event-review-guidance" label="Review guidance">
                 <div>
                   <p className="review-copy">
                     The saved detections {selectedEvent.event_kind === "appearance"
@@ -2936,7 +2942,7 @@ export default function SavedAnalysisViewer() {
                     an appearance or disappearance.
                   </p>
                 </div>
-              </details>
+              </HoverHelp>
               <dl className="event-facts">
                 <div>
                   <dt>Current label</dt>
@@ -2952,10 +2958,12 @@ export default function SavedAnalysisViewer() {
                 </div>
               </dl>
               {selectedProposal && (
-                <div className="model-note">
-                  <strong>Model proposal: {humanizeIdentifier(selectedProposal.label_id)}</strong>
-                  <span>{selectedProposal.visible_evidence}</span>
-                </div>
+                <HoverHelp
+                  id="model-proposal-evidence"
+                  label={`Model proposal: ${humanizeIdentifier(selectedProposal.label_id)}`}
+                >
+                  <p>{selectedProposal.visible_evidence}</p>
+                </HoverHelp>
               )}
               {selectedEvent.uncertainty_flags.length > 0 && (
                 <p className="uncertainty-note">
@@ -2964,52 +2972,16 @@ export default function SavedAnalysisViewer() {
                     .join(", ")}.
                 </p>
               )}
-              <button className="wide-button" type="button" onClick={replaySelectedEvent}>
-                Replay 2 seconds either side
-              </button>
-              <div className="decision-row">
-                <button
-                  className={
-                    selectedEventReview?.decision === "accepted"
-                      ? "decision-active"
-                      : undefined
-                  }
-                  type="button"
-                  onClick={() => decideSelectedEvent("accepted")}
-                >
-                  Accept event <span aria-hidden="true">(A)</span>
-                </button>
-                <button
-                  className={
-                    selectedEventReview?.decision === "rejected"
-                      ? "decision-active"
-                      : undefined
-                  }
-                  type="button"
-                  onClick={() => decideSelectedEvent("rejected")}
-                >
-                  Reject event <span aria-hidden="true">(R)</span>
-                </button>
-                <button
-                  className={
-                    selectedEventReview?.decision === "uncertain"
-                      ? "decision-active uncertain"
-                      : undefined
-                  }
-                  type="button"
-                  onClick={() => decideSelectedEvent("uncertain")}
-                >
-                  Can’t tell <span aria-hidden="true">(U)</span>
-                </button>
-              </div>
               {selectedProposal && selectedLabelReview && (
-                <form
+                <details className="compact-label-editor">
+                  <summary>Correct or confirm label</summary>
+                  <form
                   className="label-review-form"
                   onSubmit={(event) => {
                     event.preventDefault();
                     saveLabel(draftLabel, "Corrected during local review.");
                   }}
-                >
+                  >
                   <label htmlFor="label-correction">Correct or confirm label</label>
                   <input
                     id="label-correction"
@@ -3020,9 +2992,17 @@ export default function SavedAnalysisViewer() {
                     onChange={(event) => setDraftLabel(event.target.value)}
                   />
                   <div className="label-actions">
-                    <button type="submit">Save correction</button>
                     <button
+                      className={selectedLabelAction === "corrected" ? "label-action-active" : undefined}
+                      type="submit"
+                      aria-pressed={selectedLabelAction === "corrected"}
+                    >
+                      Save correction
+                    </button>
+                    <button
+                      className={selectedLabelAction === "confirmed" ? "label-action-active" : undefined}
                       type="button"
+                      aria-pressed={selectedLabelAction === "confirmed"}
                       onClick={() =>
                         saveLabel(
                           selectedLabel.label,
@@ -3033,7 +3013,9 @@ export default function SavedAnalysisViewer() {
                       Confirm current
                     </button>
                     <button
+                      className={selectedLabelAction === "uncertain" ? "label-action-active uncertain" : undefined}
                       type="button"
+                      aria-pressed={selectedLabelAction === "uncertain"}
                       onClick={() => {
                         setDraftLabel("unknown");
                         saveLabel(
@@ -3049,16 +3031,9 @@ export default function SavedAnalysisViewer() {
                     Label review: {selectedLabelReview.decision}. The original{" "}
                     {humanizeIdentifier(selectedProposal.label_id)} proposal is preserved.
                   </p>
-                </form>
+                  </form>
+                </details>
               )}
-              <div className="review-navigation">
-                <button type="button" onClick={() => navigateEvent(-1)}>
-                  Previous <span aria-hidden="true">(K)</span>
-                </button>
-                <button type="button" onClick={() => navigateEvent(1)}>
-                  Next <span aria-hidden="true">(J)</span>
-                </button>
-              </div>
               <p className="small-note">
                 Event and label reviews are separate. Changes are saved in this
                 browser for this analysis bundle until reviews are reset.
@@ -3067,16 +3042,125 @@ export default function SavedAnalysisViewer() {
           ) : (
             <p className="review-copy">Choose an event marker from the log below.</p>
           )}
-        </aside>
-        {timelinePanel}
+            </aside>
+          </div>
         </div>
+        {timelinePanel}
       </section>
+
+      <dialog
+        className="tools-dialog"
+        ref={toolsDialogRef}
+        aria-labelledby="tools-dialog-heading"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) event.currentTarget.close();
+        }}
+      >
+        <div className="tools-dialog-frame">
+          <header>
+            <div>
+              <p className="eyebrow">Review utilities</p>
+              <h2 id="tools-dialog-heading">Tools</h2>
+            </div>
+            <button type="button" aria-label="Close tools" title="Close tools" onClick={() => toolsDialogRef.current?.close()}>
+              <X size={22} aria-hidden="true" />
+            </button>
+          </header>
+          <nav className="tools-dialog-tabs" role="tablist" aria-label="Review tool categories">
+            {([
+              ["display", "Display"],
+              ["missed", `Missed animals (${missingAnimalReports.length})`],
+              ["recovery", `Recovery (${reviewedRecoveryCount(activeRecoveryReviewState)}/${loadState.recovery.candidates.length})`],
+              ["rerun", `Rerun audit (${reviewedCorrespondenceAuditCount(activeCorrespondenceAuditReviewState)}/${correspondenceQueue.length})`],
+            ] as const).map(([tab, label]) => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={toolsTab === tab}
+                className={toolsTab === tab ? "is-active" : undefined}
+                key={tab}
+                onClick={() => setToolsTab(tab)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          <div className="tools-dialog-body">
+            {toolsTab === "display" && (
+              <section className="tools-options" aria-label="Display tools">
+                <div className="tool-menu-row">
+                  <button
+                    type="button"
+                    aria-pressed={showSelectedTrail}
+                    disabled={Boolean(selectedAuditItem) || (!selectedSegmentId && !selectedRecovery)}
+                    onClick={() => {
+                      setAnalysisVisible(true);
+                      setShowAllSegments(false);
+                      setShowSelectedTrail((visible) => !visible);
+                    }}
+                  >
+                    <Path size={17} aria-hidden="true" /> {showSelectedTrail ? "Hide fading trail" : "Show fading trail"}
+                  </button>
+                  <InfoTip label="About fading trails">Draws only the selected track’s recent movement, fading behind the animal.</InfoTip>
+                </div>
+                <div className="tool-menu-row">
+                  <button
+                    type="button"
+                    aria-pressed={showAllSegments && showReviewedAdditions}
+                    onClick={() => {
+                      const next = !(showAllSegments && showReviewedAdditions);
+                      setShowReviewedAdditions(next);
+                      setAnalysisVisible(true);
+                      if (next) {
+                        setSelectedAuditItemId(null);
+                        setSelectedRecoveryId(null);
+                        setShowAllSegments(true);
+                        setShowSelectedTrail(false);
+                        audioScopeRef.current = { kind: "all" };
+                      }
+                    }}
+                  >
+                    <Stack size={17} aria-hidden="true" /> {showAllSegments && showReviewedAdditions ? "Hide reviewed additions" : "Show reviewed additions"}
+                  </button>
+                  <InfoTip label="About reviewed additions">Shows accepted supplemental recovery tracks alongside the saved analysis.</InfoTip>
+                </div>
+                <div className="tool-menu-row">
+                  <button type="button" aria-pressed={analysisVisible} onClick={() => setAnalysisVisible((visible) => !visible)}>
+                    {analysisVisible ? <EyeSlash size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}
+                    {analysisVisible ? "Hide overlays" : "Show overlays"}
+                  </button>
+                  <InfoTip label="About overlays">Toggles all saved boxes and paths without changing review decisions.</InfoTip>
+                </div>
+              </section>
+            )}
+            {toolsTab === "missed" && (
+              <section className="missed-animal-tools" aria-label="Missed-animal reports">
+                <p>Pause the video, then draw one box around each animal the saved analysis missed.</p>
+                <button className="primary-action" type="button" onClick={beginMissingAnimalReport}>
+                  Report missed animal
+                </button>
+                <div className="dialog-report-queue">
+                  <strong>{missingAnimalReports.length} report{missingAnimalReports.length === 1 ? "" : "s"} queued locally</strong>
+                  <p>Export one batch for a later local targeted-recovery run.</p>
+                  <button type="button" disabled={missingAnimalReports.length === 0} onClick={downloadMissingAnimalBatch}>Export reports</button>
+                  <button type="button" disabled={missingAnimalReports.length === 0} onClick={() => {
+                    setMissingAnimalReports((current) => current.slice(0, -1));
+                    setAnnouncement("Latest missing-animal report removed from the local queue.");
+                  }}>Remove latest report</button>
+                </div>
+              </section>
+            )}
+            {toolsTab === "recovery" && recoveryToolsPanel}
+            {toolsTab === "rerun" && (correspondenceAuditPanel ?? <p>No rerun audit is available for this clip.</p>)}
+          </div>
+        </div>
+      </dialog>
 
       <section className="event-table-section" aria-labelledby="event-table-heading">
         <div className="section-heading compact">
           <div>
             <p className="eyebrow">Auditable export</p>
-            <h2 id="event-table-heading">Event table</h2>
+            <h2 id="event-table-heading">{tableView === "events" ? "Event table" : "Track metrics"}</h2>
           </div>
           <div className="table-actions">
             <button type="button" onClick={resetReviews}>Reset reviews</button>
@@ -3086,17 +3170,20 @@ export default function SavedAnalysisViewer() {
                   ? `${unexportedChangeCount} change${unexportedChangeCount === 1 ? "" : "s"} not exported`
                   : "CSV up to date"}
               </span>
-              <button className="primary-action" type="button" onClick={downloadCsv}>
+              <button className={tableView === "events" ? "primary-action" : undefined} type="button" onClick={() => { setTableView("events"); downloadCsv(); }}>
                 Event CSV
               </button>
-              <button type="button" onClick={downloadTrackSummaryCsv}>Track metrics CSV</button>
+              <button className={tableView === "tracks" ? "primary-action" : undefined} type="button" onClick={() => { setTableView("tracks"); downloadTrackSummaryCsv(); }}>Track metrics CSV</button>
             </div>
           </div>
         </div>
-        <div className="bulk-review-bar" aria-label="Bulk event review">
+        {tableView === "events" && <div className="bulk-review-bar" aria-label="Bulk event review">
           <span>
             {selectedEventIds.size} event{selectedEventIds.size === 1 ? "" : "s"} selected
           </span>
+          <button type="button" onClick={() => setSelectedEventIds(new Set(readyBundle.events.map((item) => item.event_id)))}>
+            Select all
+          </button>
           <button
             type="button"
             disabled={selectedEventIds.size === 0}
@@ -3118,8 +3205,8 @@ export default function SavedAnalysisViewer() {
           >
             Can’t tell selected
           </button>
-          <label>
-            Apply broad label
+          <label title="Assign one broad animal label to every unique segment represented by the selected event rows.">
+            Label selected tracks
             <input
               value={bulkLabel}
               maxLength={120}
@@ -3131,10 +3218,10 @@ export default function SavedAnalysisViewer() {
             disabled={selectedEventIds.size === 0 || bulkLabel.trim().length === 0}
             onClick={applyBulkLabel}
           >
-            Apply to selected segments
+            Apply label
           </button>
-        </div>
-        <div className="event-table-scroll">
+        </div>}
+        {tableView === "events" ? <div className="event-table-scroll">
           <table>
             <thead>
               <tr>
@@ -3229,7 +3316,21 @@ export default function SavedAnalysisViewer() {
               })}
             </tbody>
           </table>
-        </div>
+        </div> : <div className="event-table-scroll track-metrics-table">
+          <table>
+            <thead><tr><th>Segment</th><th>Current label</th><th>First–last frame</th><th>Dwell</th><th>Samples</th><th>Path px</th><th>Mean motion px/s</th><th>Flags</th></tr></thead>
+            <tbody>
+              {readyBundle.segments.map((segment) => {
+                const label = currentReviewedLabel(readyBundle, activeReviewState, segment.segment_id);
+                const metrics = trackMetrics(segment, readyBundle.clip.processed_fps);
+                const flags = [...new Set(readyBundle.events.filter((event) => event.segment_id === segment.segment_id).flatMap((event) => event.uncertainty_flags))];
+                return <tr key={segment.segment_id} onClick={() => selectSegment(segment.segment_id)}>
+                  <td>{segment.segment_id}</td><td>{humanizeIdentifier(label.label)}</td><td>{segment.first_frame}–{segment.last_frame}</td><td>{metrics.observed_dwell_s}s</td><td>{metrics.geometry_samples}</td><td>{metrics.path_length_px}</td><td>{metrics.mean_centroid_motion_px_s}</td><td>{flags.map(humanizeIdentifier).join(", ") || "—"}</td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>}
         <p className="timeline-note">
           CSV includes every proposal, including rejected and unreviewed records. It is a
           WildScore event export, not a Camtrap DP package. Track metrics are descriptive
@@ -3252,6 +3353,12 @@ export default function SavedAnalysisViewer() {
           </p>
         </div>
         <div className="evidence-results">
+          {evidence.heldOutResult && (
+            <figure className="heldout-proof">
+              <img src="/demo/wolf-heldout-boundary.png" alt="Held-out wolf clip with the saved SAM boundary drawn around the wolf" />
+              <figcaption>Held-out wolf check · boundary evidence shown</figcaption>
+            </figure>
+          )}
           <dl>
             <div>
               <dt>Event proposals</dt>
