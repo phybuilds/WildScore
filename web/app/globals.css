@@ -3274,6 +3274,11 @@ footer {
 
 .timeline-section {
   min-width: 0;
+  align-self: stretch;
+  contain: size;
+  height: auto;
+  max-height: none;
+  margin-top: 52px;
   overflow: hidden;
 }
 
@@ -3662,5 +3667,9 @@ footer {
 
   .media-column {
     overflow: visible;
+  }
+
+  .timeline-section {
+    margin-top: 0;
   }
 }
