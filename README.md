@@ -132,9 +132,10 @@ Two users reviewed the same crowded waterhole clip in a small exploratory compar
 | **Review time** | 34.5 min | 6 min |
 | **Notable misses** | Unidentified birds, warthog, and several baboon and antelope events | Not established without an adjudicated reference count |
 
-The **30 accepted events** comprise 26 core proposals plus four recovery tracks with eligible event evidence. Six other accepted recovery tracks improved visible coverage without changing the event total. With no adjudicated reference count, this compares review logs—not recall, precision or accuracy.
+The **30 accepted events** comprise 26 core proposals accepted by the reviewer plus four recovery tracks with eligible event evidence. Six other accepted recovery tracks improved visible coverage without changing the event total. With no adjudicated reference count, this compares review logs—not recall, precision or accuracy.
 
-**Takeaway:** fatigue-driven misses became visible, recoverable proposals, and every machine suggestion stayed auditable. This is a small exploratory pilot (one clip, two users), not an accuracy benchmark.
+**Takeaway:** WildScore’s proposals surfaced events that were absent from the manual log, and every machine suggestion stayed auditable. This is a small exploratory pilot (one clip, two users), not an accuracy benchmark.
+One possible explanation is reviewer fatigue on a crowded scene, which this pilot can’t test.
 
 ## Evidence and validation
 
@@ -152,7 +153,7 @@ Two eligible boundary events matched with **zero misses and zero false alarms**.
 
 <sub><em><strong>Figure 6.</strong> Supplemental recovery remains separate from the original model proposal. Source: WildScore interface and project field footage; CC BY-NC 4.0.</em></sub>
 
-The crowded development clip contains 51 core event proposals and 10 manually accepted supplemental recovery tracks. Recovery evidence is deliberately additive: it makes SAM 3.1 failures inspectable without rewriting the original model output or pretending fragmented tracks are one animal.
+The crowded development clip contains 51 core event proposals (26 accepted, 20 rejected and 5 marked Unsure by the reviewer) and 10 manually accepted supplemental recovery tracks. Rejections were attributed to camera motion, possible occlusion, detection failure and track fragmentation (see [Table 4](#table-4)). Recovery evidence is deliberately additive: it makes SAM 3.1 failures inspectable without rewriting the original model output or pretending fragmented tracks are one animal.
 
 ### SAM tracking in another environment
 
@@ -173,6 +174,7 @@ The crowded development clip contains 51 core event proposals and 10 manually ac
   </tr>
 </table>
 
+<a id="table-4"></a>
 <sub><em><strong>Table 4.</strong> Observed model limitations and WildScore's review response.</em></sub>
 
 | Observed failure | What happens | WildScore response |
