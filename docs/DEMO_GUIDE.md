@@ -4,7 +4,7 @@ The hosted and local demos replay saved, integrity-checked SAM 3.1 and Muse Spar
 
 ## 1. Start the saved replay
 
-Open the viewer and select **Analyse**. The video, track layers and event timeline load from the committed bundle.
+Open the viewer and select **Analyse**. The video, track layers, and event timeline load from the committed bundle.
 
 ![Current WildScore review workspace](assets/wildscore-review-workspace.jpg)
 
