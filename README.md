@@ -51,7 +51,7 @@ Wildlife is declining fast: WWF's *Living Planet Report 2026* finds an average *
 
 1. Replay the saved SAM 3.1 and Muse Spark 1.3 result—no live inference.
 2. Select a track or event to jump to its source frame and hear its cue.
-3. Accept, reject or mark the proposal **Can't tell**; correct labels separately.
+3. Accept, reject or mark the proposal unsure; correct labels separately.
 4. Review supplemental recovery tracks without silently merging identities.
 5. Export the complete decision ledger or descriptive track metrics as CSV.
 
