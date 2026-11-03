@@ -80,7 +80,7 @@ SAM and Muse Spark calls go through the Meta Model API. The key remains process-
 
 ## Quickstart
 
-### **Keyless Playground Demo**
+### **Keyless Demo (no API key needed)**
 **Easiest:** open the [hosted demo](https://wildscore-demo.pages.dev/).
 
 ### Run it locally
@@ -90,8 +90,8 @@ cd WildScore
 npm ci --ignore-scripts
 npm run build:bundle && npm run dev
 ```
+Opens on <http://127.0.0.1:3000> (or the port shown).
 
-`build:bundle` verifies the hashes of the committed demo bundle. `dev` binds to `127.0.0.1`; neither command needs `MODEL_API_KEY`, ffmpeg or a model call.
 
 ### Docker (static viewer only)
 ```bash
