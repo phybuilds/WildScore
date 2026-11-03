@@ -101,8 +101,6 @@ docker run --rm -p 127.0.0.1:8080:8080 wildscore
 
 Open <http://127.0.0.1:8080>. The multi-stage image runs as a non-root user and serves only the static viewer plus the approved 6.3 MB demo excerpt. 
 
-Verified locally from a clean Docker context: the image builds, becomes healthy, serves `/` and the held-out wolf image with HTTP 200, supports video byte ranges, exposes no `MODEL_API_KEY`, and contains no `private/` path.
-
 ### Tests and CI
 
 ```bash
