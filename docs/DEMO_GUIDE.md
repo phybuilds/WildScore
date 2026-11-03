@@ -20,7 +20,7 @@ Select an appearance or disappearance proposal. WildScore jumps to its evidence 
 
 ## 3. Record a decision
 
-Choose **Accept**, **Reject** or **Can't tell**. Event decisions and label corrections are stored separately from the machine proposal.
+Choose **Accept**, **Reject** or **Unsure**. Event decisions and label corrections are stored separately from the machine proposal.
 
 ![Accepted decision shown separately from the saved model proposal](assets/review-decision.jpg)
 
