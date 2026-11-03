@@ -138,7 +138,7 @@ One possible explanation is reviewer fatigue on a crowded scene, which this pilo
 
 <sub><em><strong>Figure 5.</strong> Held-out wolf frame with the saved SAM boundary. Source footage: USFWS Mountain-Prairie, public domain; overlay: WildScore, CC BY-NC 4.0.</em></sub>
 
-**2/2** eligible boundary events matched with **0 misses and 0 false alarms**. 
+**2/2** eligible boundary events matched with **0 misses** and **0 false alarms**. 
 The Muse Spark label matched the frozen reference. This is one short, static, uncrowded wolf clip—a pipeline check, not a general accuracy estimate.
 
 ### Supplemental recovery tracks
@@ -147,7 +147,7 @@ The Muse Spark label matched the frozen reference. This is one short, static, un
 
 <sub><em><strong>Figure 6.</strong> Supplemental recovery remains separate from the original model proposal. Source: WildScore interface and project field footage; CC BY-NC 4.0.</em></sub>
 
-The crowded development clip contains 51 core event proposals (26 accepted, 20 rejected and 5 marked Unsure by the reviewer) and 10 manually accepted supplemental recovery tracks. Rejections were attributed to camera motion, possible occlusion, detection failure and track fragmentation (see [Table 4](#table-4)). Recovery evidence is deliberately additive: it makes SAM 3.1 failures inspectable without rewriting the original model output or pretending fragmented tracks are one animal.
+The crowded development clip contains 51 core event proposals (26 accepted, 20 rejected and 5 marked Unsure by the reviewer) and 10 manually accepted supplemental recovery tracks. Rejections were attributed to camera motion, possible occlusion, detection failure and track fragmentation (see [Table 3](#table-3)). Recovery evidence is deliberately additive: it makes SAM 3.1 failures inspectable without rewriting the original model output or pretending fragmented tracks are one animal.
 
 ### SAM tracking in another environment
 
@@ -168,8 +168,8 @@ The crowded development clip contains 51 core event proposals (26 accepted, 20 r
   </tr>
 </table>
 
-<a id="table-4"></a>
-<sub><em><strong>Table 4.</strong> Observed model limitations and WildScore's review response.</em></sub>
+<a id="table-3"></a>
+<sub><em><strong>Table 3.</strong> Observed model limitations and WildScore's review response.</em></sub>
 
 | Observed failure | What happens | WildScore response |
 | :--- | :--- | :--- |
