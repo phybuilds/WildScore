@@ -12,7 +12,7 @@ Open the viewer and select **Analyse**. The video, track layers and event timeli
 
 ## 2. Inspect an event by sight and sound
 
-Select an appearance or disappearance proposal. WildScore jumps to its evidence frame and plays a left-, centre- or right-panned cue based on the saved geometry.
+Select an appearance or disappearance proposal. WildScore jumps to its evidence frame and plays a left-, centre-, or right-panned cue based on the saved geometry.
 
 ![Current WildScore event review loop](assets/review-loop-current.gif)
 
