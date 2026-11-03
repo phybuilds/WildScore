@@ -210,15 +210,11 @@ const boxCenterX = (box.left + box.right) / 2;
 const pan = boxCenterX < width / 3 ? -1 : boxCenterX > 2 * width / 3 ? 1 : 0;
 ```
 
-The Web Audio stereo panner applies an equal-power sound field. With normalized pan position \(X_n=(pan+1)/2\):
+The Web Audio stereo panner applies an equal-power sound field. With normalized pan position $X_n = (\mathrm{pan}+1)/2$:
 
-\[
-G_{left}=\cos\left(\frac{\pi}{2}X_n\right)
-\]
+$$G_{\text{left}} = \cos\left(\frac{\pi}{2} X_n\right)$$
 
-\[
-G_{right}=\sin\left(\frac{\pi}{2}X_n\right)
-\]
+$$G_{\text{right}} = \sin\left(\frac{\pi}{2} X_n\right)$$
 
 Appearance cues rise; disappearance cues fall. Rejected and uncertain events are silent, and simultaneous cues are voice-limited so a crowded frame does not become an unusable wall of sound. See [`src/audio/cue-builder.ts`](src/audio/cue-builder.ts).
 
