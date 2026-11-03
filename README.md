@@ -93,14 +93,13 @@ npm run build:bundle && npm run dev
 
 `build:bundle` verifies the hashes of the committed demo bundle. `dev` binds to `127.0.0.1`; neither command needs `MODEL_API_KEY`, ffmpeg or a model call.
 
-### Docker (review viewer, no API key)
-
+### Docker (static viewer only)
 ```bash
 docker build -t wildscore .
 docker run --rm -p 127.0.0.1:8080:8080 wildscore
 ```
 
-Open <http://127.0.0.1:8080>. The multi-stage image runs as a non-root user and serves only the static viewer plus the approved 6.3 MB demo excerpt. It contains no analysis pipeline, ffmpeg, Node application dependencies, API key, `private/` directory or private/source footage.
+Open <http://127.0.0.1:8080>. The multi-stage image runs as a non-root user and serves only the static viewer plus the approved 6.3 MB demo excerpt. 
 
 Verified locally from a clean Docker context: the image builds, becomes healthy, serves `/` and the held-out wolf image with HTTP 200, supports video byte ranges, exposes no `MODEL_API_KEY`, and contains no `private/` path.
 
@@ -112,9 +111,8 @@ npm test && npm run typecheck && npm run build
 
 `.github/workflows/ci.yml` runs `npm ci --ignore-scripts`, the full test suite, type-checking and the production build on every push and pull request with read-only repository permissions and no secrets. A second job builds the Docker image, inspects the static-only boundary and smoke-tests HTTP 200. The badge above reports the workflow on `main`.
 
-### Analyse your own footage
-
-This optional private-analysis path is separate from the keyless demo. It requires ffmpeg/ffprobe 8.0.3 or a later reviewed patched release and a Meta Model API key stored in ignored `.env.local` storage.
+### Analyse your own footage (requires Meta API key)
+Requires ffmpeg/ffprobe 8.0.3 or a later reviewed patched release and a Meta Model API key stored in ignored `.env.local` storage.
 
 ```bash
 node --env-file=.env.local bin/wildscore.mjs doctor
