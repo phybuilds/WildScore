@@ -21,9 +21,9 @@ WildScore turns a short wildlife clip into an **evidence-linked event timeline**
 
 <sub><em><strong>Figure 2.</strong> Footage outgrows review capacity; WildScore makes model proposals inspectable. Source: AI-generated infographic, edited against project evidence; CC BY-NC 4.0.</em></sub>
 
-Wildlife is declining fast: WWF's *Living Planet Report 2026* finds an average **73% fall** in monitored wildlife population sizes since 1970.[[1]](#reference-1) Understanding where and when animals appear requires field evidence—but collecting footage is only the first step.
+Wildlife is declining fast: WWF's *Living Planet Report 2026* finds an average **73% fall** in monitored wildlife population sizes since 1970 [[1]](#reference-1). Understanding where and when animals appear requires field evidence—but collecting footage is only the first step.
 
-**The bottleneck is review, not recording.** Camera-traps can produce millions of images that take significant effort to review [[2]].(#reference-2) AI is closing that gap for still-image species identification [[3]],(#reference-3) but crowded wildlife videos remain challenging to review:
+**The bottleneck is review, not recording.** Camera-traps can produce millions of images that take significant effort to review [[2]](#reference-2). AI is closing that gap for still-image species identification [[3]](#reference-3), but crowded wildlife videos remain challenging to review:
 
 - animals overlap or disappear behind vegetation;
 - one animal may be split into several tracks;
