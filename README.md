@@ -11,19 +11,19 @@ WildScore turns a short wildlife clip into an **evidence-linked event timeline**
 [![CI](https://github.com/phybuilds/WildScore/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/phybuilds/WildScore/actions/workflows/ci.yml)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-open%20the%20keyless%20viewer-2563eb?style=for-the-badge)](https://wildscore-demo.pages.dev/)
 
-![WildScore review cockpit showing wildlife video, evidence-linked tracks and event timeline](docs/assets/wildscore-hero.png)
+![Current WildScore review workspace showing wildlife video, evidence-linked tracks and event timeline](docs/assets/wildscore-review-workspace.jpg)
 
 *Review model proposals by sight and sound, then keep the full decision trail.*
 
 ## The problem
 
-![WildScore problem-to-solution view: a difficult wildlife track becomes evidence a reviewer can inspect](docs/assets/scavenger-track-overlap.png)
+![The wildlife-video review bottleneck and WildScore's evidence-linked human review loop](docs/assets/problem-video-bottleneck.jpg)
 
-*Crowding and occlusion break tracks; a final count cannot explain what the model saw.*
+*Footage outgrows review capacity; WildScore turns model proposals into evidence a person can decide.*
 
-Wildlife is declining fast: WWF's *Living Planet Report 2026* finds an average **73% fall** in monitored wildlife population sizes since 1970.[1] Understanding where and when animals appear requires field evidence—but collecting footage is only the first step.
+Wildlife is declining fast: WWF's *Living Planet Report 2026* finds an average **73% fall** in monitored wildlife population sizes since 1970.[[1]](#reference-1) Understanding where and when animals appear requires field evidence—but collecting footage is only the first step.
 
-**The bottleneck is review, not recording.** Camera-trap arrays produce thousands to millions of images that take significant effort to review.[2] AI is closing that gap for still-image species identification: a 2026 study found that occupancy models built from an automated MegaDetector and SpeciesNet pipeline were remarkably similar to expert-based models for most mammal species, with the clearest divergence among rarely detected species.[3] Crowded wildlife video remains difficult to review:
+**The bottleneck is review, not recording.** Camera-trap arrays produce thousands to millions of images that take significant effort to review.[[2]](#reference-2) AI is closing that gap for still-image species identification: a 2026 study found that occupancy models built from an automated MegaDetector and SpeciesNet pipeline were remarkably similar to expert-based models for most mammal species, with the clearest divergence among rarely detected species.[[3]](#reference-3) Crowded wildlife video remains difficult to review:
 
 - animals overlap or disappear behind vegetation;
 - one animal may be split into several tracks;
@@ -35,9 +35,13 @@ WildScore's answer is collaborative verification, not automated perfection: **th
 
 ## See it work
 
-![Animated WildScore review loop: select evidence, jump to the frame and record a decision](docs/assets/review-loop.gif)
+![Animated current WildScore review loop: select evidence, jump to the frame and record a decision](docs/assets/review-loop-current.gif)
 
 *Select an event, hear its spatial cue, inspect the evidence and record a decision.*
+
+![Five-step WildScore workflow from wildlife clip to auditable CSV](docs/assets/workflow-five-steps.jpg)
+
+*SAM proposes, Muse Spark adds bounded labels, and the reviewer decides what enters the CSV.*
 
 1. Replay the saved SAM 3.1 and Muse Spark 1.3 result—no live inference.
 2. Select a track or event to jump to its source frame and hear its cue.
@@ -85,13 +89,19 @@ Verified locally from a clean Docker context: the image builds, becomes healthy,
 npm test && npm run typecheck && npm run build
 ```
 
-`.github/workflows/ci.yml` is configured to run `npm ci --ignore-scripts`, the full test suite, type-checking and the production build on every push and pull request with read-only repository permissions and no secrets. A second job builds the Docker image, inspects the static-only boundary and smoke-tests HTTP 200. The CI badge will be added only after the workflow is green on `main`.
+`.github/workflows/ci.yml` runs `npm ci --ignore-scripts`, the full test suite, type-checking and the production build on every push and pull request with read-only repository permissions and no secrets. A second job builds the Docker image, inspects the static-only boundary and smoke-tests HTTP 200. The badge above reports the workflow on `main`.
+
+### Analyse your own footage
+
+This optional private-analysis path is separate from the keyless demo. It requires ffmpeg/ffprobe 8.0.3 or a later reviewed patched release and a Meta Model API key stored in ignored `.env.local` storage.
+
+```bash
+node --env-file=.env.local bin/wildscore.mjs doctor
+node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --dry-run --max-seconds 30 --max-calls 8
+node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --full --yes --max-seconds 30 --max-calls 8
+```
 
 ## Pilot case study
-
-![WildScore architecture showing private processing, Meta model proposals and separate human decisions](docs/assets/architecture-review-provenance.png)
-
-*Machine proposals remain separate from reviewer decisions and recovery evidence.*
 
 Two people reviewed the same crowded waterhole clip in a small exploratory comparison—not an accuracy benchmark.
 
@@ -112,11 +122,25 @@ Two eligible boundary events matched with **zero misses and zero false alarms**.
 
 ### Supplemental recovery tracks
 
-![Early scavenger track evidence showing a track that needs reviewer inspection](docs/assets/scavenger-track-early.png)
+![Current WildScore recovery review showing a supplemental track and separate label decision](docs/assets/recovery-review.jpg)
 
 The crowded development clip contains 51 core event proposals and 10 manually accepted supplemental recovery tracks. Recovery evidence is deliberately additive: it makes SAM 3.1 failures inspectable without rewriting the original model output or pretending fragmented tracks are one animal.
 
+### SAM tracking in another environment
+
+![SAM tracking animals through a crowded coral-reef scene](docs/assets/coral-sam-tracking.gif)
+
+*Saved SAM tracking in a second environment; a capability example, not an accuracy test.*
+
 ## Known model limitations
+
+![Crowded scavenger scene where overlapping animals compete for track boundaries](docs/assets/scavenger-track-overlap.png)
+
+*Crowding can merge nearby animals into one boundary.*
+
+![Early scavenger frame showing several short, fragmented track boxes](docs/assets/scavenger-track-early.png)
+
+*Background blending and occlusion can fracture visible animals into separate tracks.*
 
 | Observed failure | What happens | WildScore response |
 | :--- | :--- | :--- |
@@ -132,23 +156,13 @@ Supplemental recovery tracks are not a cosmetic patch. They demonstrate the engi
 
 ![WildScore private workflow from local video through Meta models to a static evidence viewer](docs/assets/architecture-private-workflow.png)
 
-![SAM tracking animals through a crowded coral-reef scene](docs/assets/coral-sam-tracking.gif)
-
-*Saved SAM tracking in a second environment; a capability example, not an accuracy test.*
-
-```text
-local video
-  → ffprobe validation and bounded, metadata-stripped derivative
-  → Meta SAM 3.1 geometry and tracks
-  → deterministic presence and boundary-event proposals
-  → bounded Muse Spark 1.3 visual label evidence
-  → validated private bundle
-  → static review viewer and defensive CSV exports
-```
-
 The CLI uses argument arrays rather than shell interpolation, pins the Meta API host, caps duration and calls, checkpoints resumable stages, validates provider output and confirms remote input deletion after SAM. If Spark fails, the geometry timeline remains reviewable with unlabelled tracks.
 
 ## Architecture
+
+![WildScore architecture separating saved model evidence, deterministic events, human review and auditable output](docs/assets/architecture-review-provenance.png)
+
+*Machine proposals remain inspectable while reviewer decisions and recovery evidence stay separate.*
 
 ### Visual-spatial event anchors
 
@@ -179,6 +193,15 @@ Appearance cues rise; disappearance cues fall. Rejected and uncertain events are
 4. **Public viewer:** the static export has no upload endpoint, API route, inference proxy or secret.
 5. **Defensive export:** CSV includes rejected and uncertain proposals and neutralises spreadsheet-formula prefixes.
 
+### Privacy and safety
+
+- `MODEL_API_KEY` is process-local: never a CLI argument, browser variable, committed value or log field.
+- Source media is re-encoded locally with metadata removed before a model call.
+- Remote media deletion is confirmed after the SAM stage.
+- Private media, raw provider responses and run bundles stay under git-ignored `private/` storage.
+- Public output is scanned for credentials, environment files, personal paths and private-run data.
+- The Docker runtime contains only static public output and runs as non-root UID 101.
+
 ### Repo layout
 
 | Path | Purpose |
@@ -193,25 +216,6 @@ Appearance cues rise; disappearance cues fall. Rejected and uncertain events are
 | `.env.example` | Name-only template for the local `MODEL_API_KEY` |
 | `.node-version` | Pinned Node.js version |
 
-## Analyse your own footage
-
-Private analysis additionally requires ffmpeg/ffprobe 8.0.3 or a later reviewed patched release and a Meta Model API key in ignored `.env.local` storage.
-
-```bash
-node --env-file=.env.local bin/wildscore.mjs doctor
-node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --dry-run --max-seconds 30 --max-calls 8
-node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --full --yes --max-seconds 30 --max-calls 8
-```
-
-## Privacy and safety
-
-- `MODEL_API_KEY` is process-local: never a CLI argument, browser variable, committed value or log field.
-- Source media is re-encoded locally with metadata removed before a model call.
-- Remote media deletion is confirmed after the SAM stage.
-- Private media, raw provider responses and run bundles stay under git-ignored `private/` storage.
-- Public output is scanned for credentials, environment files, personal paths and private-run data.
-- The Docker runtime contains only static public output and runs as non-root UID 101.
-
 ## What's next
 
 Only Meta models are used in the processing pipeline for this build. From easiest to hardest after the hackathon:
@@ -224,8 +228,8 @@ Only Meta models are used in the processing pipeline for this build. From easies
 
 ## References
 
-[1]: https://www.worldwildlife.org/publications/2026-living-planet-report/ "WWF, Living Planet Report 2026"
-[2]: https://munin.uit.no/handle/10037/34526 "Celis et al., 2024"
-[3]: https://besjournals.onlinelibrary.wiley.com/doi/10.1111/1365-2664.70370 "Thornton et al., 2026"
+1. <a id="reference-1"></a>WWF. [*Living Planet Report 2026*](https://www.worldwildlife.org/publications/2026-living-planet-report/).
+2. <a id="reference-2"></a>Celis et al. (2024). [Camera-trap review research record](https://munin.uit.no/handle/10037/34526).
+3. <a id="reference-3"></a>Thornton et al. (2026). [Automated MegaDetector and SpeciesNet occupancy study](https://besjournals.onlinelibrary.wiley.com/doi/10.1111/1365-2664.70370).
 
 *WildScore does not claim to solve wildlife monitoring. It gives researchers a faster, more honest way to see what the model saw—and correct it.*

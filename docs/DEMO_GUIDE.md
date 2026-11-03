@@ -6,23 +6,25 @@ The hosted and local demos replay saved, integrity-checked SAM 3.1 and Muse Spar
 
 Open the viewer and select **Analyse**. The video, track layers and event timeline load from the committed bundle.
 
-![WildScore review cockpit](assets/wildscore-hero.png)
+![Current WildScore review workspace](assets/wildscore-review-workspace.jpg)
 
 ## 2. Inspect an event by sight and sound
 
 Select an appearance or disappearance proposal. WildScore jumps to its evidence frame and plays a left-, centre- or right-panned cue based on the saved geometry.
 
-![WildScore event review loop](assets/review-loop.gif)
+![Current WildScore event review loop](assets/review-loop-current.gif)
 
 ## 3. Record a decision
 
 Choose **Accept**, **Reject** or **Can't tell**. Event decisions and label corrections are stored separately from the machine proposal.
 
+![Accepted decision shown separately from the saved model proposal](assets/review-decision.jpg)
+
 ## 4. Inspect model failure and recovery
 
 Open recovery review to see supplemental tracks. These additions improve visible coverage without overwriting the SAM baseline or silently merging identities.
 
-![Crowded-scene track overlap](assets/scavenger-track-overlap.png)
+![Recovery tools showing ten accepted supplemental recovery candidates](assets/recovery-candidates.png)
 
 ## 5. Check evidence and export
 
