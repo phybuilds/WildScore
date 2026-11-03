@@ -111,17 +111,19 @@ node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --dry-run
 node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --full --yes --max-seconds 30 --max-calls 8
 ```
 
-## Pilot case study
+## Pilot case study (n=2)
+Two users reviewed the same crowded waterhole clip in a small exploratory comparison - **not** an accuracy benchmark.
 
-Two users reviewed the same crowded waterhole clip in a small exploratory comparison—not an accuracy benchmark.
+```text
+Events logged / accepted by reviewers
+Manual    ██████████████████░░░░░░  22
+WildScore ████████████████████████  30
 
-<sub><em><strong>Table 3.</strong> Manual and WildScore-assisted review logs for the same clip.</em></sub>
-
-| | Manual review | WildScore-assisted review |
-| :--- | :---: | :---: |
-| **Events logged / accepted** | 22 | 30 |
-| **Review time** | 34.5 min | 6 min |
-| **Notable misses** | Unidentified birds, warthog, and several baboon and antelope events | Not established without an adjudicated reference count |
+Review time
+Manual    ████████████████████████  34.5 mins
+WildScore ████░░░░░░░░░░░░░░░░░░░░  6 mins
+```
+**In the WildScore log but absent from the manual log:** unidentified birds · warthog · several baboon & antelope events.
 
 The **30 accepted events** comprise 26 core proposals accepted by the reviewer plus four recovery tracks with eligible event evidence. Six other accepted recovery tracks improved visible coverage without changing the event total. With no adjudicated reference count, this compares review logs—not recall, precision or accuracy.
 
@@ -136,7 +138,8 @@ One possible explanation is reviewer fatigue on a crowded scene, which this pilo
 
 <sub><em><strong>Figure 5.</strong> Held-out wolf frame with the saved SAM boundary. Source footage: USFWS Mountain-Prairie, public domain; overlay: WildScore, CC BY-NC 4.0.</em></sub>
 
-Two eligible boundary events matched with **zero misses and zero false alarms**. The Muse Spark label matched the frozen reference. This is one short, static, uncrowded wolf clip—a pipeline check, not a general accuracy estimate.
+**2/2** eligible boundary events matched with **0 misses and 0 false alarms**. 
+The Muse Spark label matched the frozen reference. This is one short, static, uncrowded wolf clip—a pipeline check, not a general accuracy estimate.
 
 ### Supplemental recovery tracks
 
