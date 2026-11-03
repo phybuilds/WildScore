@@ -74,7 +74,6 @@ Every model in the WildScore processing pipeline is a Meta model, including when
 | **SAM 3.1** | `sam-3.1` | Segments and tracks visible animals; deterministic code derives appearance and disappearance proposals from its geometry. | [`src/cli/meta-sam-run.mjs`](src/cli/meta-sam-run.mjs) and [`scripts/build-result-bundle.mjs`](scripts/build-result-bundle.mjs) |
 | **Muse Spark 1.3** | `muse-spark-1.3` | Reviews selected frames and writes bounded text-label evidence for separate human review. | [`src/cli/spark-label-stage.mjs`](src/cli/spark-label-stage.mjs) and [`scripts/meta-spark-label.mjs`](scripts/meta-spark-label.mjs) |
 | **Muse Code** | Not recorded in the public runtime | Assisted with bounded implementation tasks during the hackathon; it is not part of the processing pipeline. | No runtime, performance or quantitative usage claim is made. |
-| **Other Muse models** | n/a | Not used in the processing pipeline. | n/a |
 
 SAM and Muse Spark calls go through the Meta Model API. The key remains process-local; no fine-tuned or open-weight model is used. Provider-reported usage remains in private run records and is not presented as billing or performance evidence.
 
