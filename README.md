@@ -81,15 +81,9 @@ SAM and Muse Spark calls go through the Meta Model API. The key remains process-
 ## Quickstart
 
 ### **Keyless Playground Demo**
-
-Users can interact with the spatial-audio review cockpit in **under 60 seconds**, without generating or configuring an API key. The viewer replays committed, integrity-checked fixtures; it does not contact the Meta API.
-
 **Easiest:** open the [hosted demo](https://wildscore-demo.pages.dev/).
 
 ### Run it locally
-
-Requires Node.js 24.22.1 and npm 11.19.1, pinned in the repository.
-
 ```bash
 git clone https://github.com/phybuilds/WildScore.git
 cd WildScore
