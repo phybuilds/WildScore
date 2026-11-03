@@ -112,23 +112,21 @@ node --env-file=.env.local bin/wildscore.mjs analyse /path/to/clip.mp4 --full --
 ```
 
 ## Pilot case study (n=2)
-Two users reviewed the same crowded waterhole clip in a small exploratory comparison - **not** an accuracy benchmark.
+Two users reviewed the same crowded waterhole clip. This is an exploratory comparison, **not** an accuracy benchmark.
 
 ```text
-Events logged / accepted by reviewers
+Events accepted
 Manual    ██████████████████░░░░░░  22
 WildScore ████████████████████████  30
 
 Review time
-Manual    ████████████████████████  34.5 mins
-WildScore ████░░░░░░░░░░░░░░░░░░░░  6 mins
+Manual    ████████████████████████  34.5 min
+WildScore ████░░░░░░░░░░░░░░░░░░░░  6 min
 ```
-**In the WildScore log but absent from the manual log:** unidentified birds · warthog · several baboon & antelope events.
 
-The **30 accepted events** comprise 26 core proposals accepted by the reviewer plus four recovery tracks with eligible event evidence. Six other accepted recovery tracks improved visible coverage without changing the event total. With no adjudicated reference count, this compares review logs—not recall, precision or accuracy.
+**In the WildScore log but not the manual log:** unidentified birds · warthog · several baboon and antelope events.
 
-**Takeaway:** WildScore’s proposals surfaced events that were absent from the manual log, and every machine suggestion stayed auditable. This is a small exploratory pilot (one clip, two users), not an accuracy benchmark.
-One possible explanation is reviewer fatigue on a crowded scene, which this pilot can’t test.
+WildScore's 30 = 26 reviewer-accepted core proposals + 4 recovery tracks with eligible event evidence. Six more accepted recovery tracks added visible coverage but not events. With no adjudicated reference count, this compares review logs, not recall or precision.
 
 ## Evidence and validation
 
