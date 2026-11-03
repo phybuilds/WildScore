@@ -120,8 +120,8 @@ Manual    ██████████████████░░░░░�
 WildScore ████████████████████████  30
 
 Review time
-Manual    ████████████████████████  34.5 min
-WildScore ████░░░░░░░░░░░░░░░░░░░░  6 min
+Manual    ████████████████████████  34.5 mins
+WildScore ████░░░░░░░░░░░░░░░░░░░░  6 mins
 ```
 
 **In the WildScore log but not the manual log:** unidentified birds · warthog · several baboon and antelope events.
