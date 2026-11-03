@@ -39,7 +39,7 @@ Wildlife is declining fast: WWF's *Living Planet Report 2026* finds an average *
 
 | The gap | What WildScore does |
 | :--- | :--- |
-| Too much footage to watch | SAM 3.1 proposes when animals appear and disappear, and Muse Spark 1.3 adds bounded labels, so the reviewer starts from evidence-linked proposals instead of raw footage. |
+| Too much footage to watch | **SAM 3.1** proposes when animals appear and disappear, and **Muse Spark 1.3** adds bounded labels, so the reviewer starts from evidence-linked proposals instead of raw footage. |
 | Fatigue and missed events | A sound plays on each appearance and disappearance, panned left or right to where it happened. Recovery tracks let the reviewer add animals the model missed. |
 | A black-box count cannot be trusted | Every suggestion links to its frame, every human decision is stored separately, and accepted, rejected and uncertain proposals remain in an auditable CSV. |
 
