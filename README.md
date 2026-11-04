@@ -4,16 +4,32 @@
 
 WildScore turns a short wildlife clip into an **evidence-linked event timeline** with optional spatial audio, so researchers can find, verify and export animal events—and see exactly what the model saw.
 
+[![CI](https://github.com/phybuilds/WildScore/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/phybuilds/WildScore/actions/workflows/ci.yml)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-keyless%20viewer-2563eb?style=flat-square)](https://wildscore-demo.pages.dev/)
+![Demo Video](https://img.shields.io/badge/YouTube%20demo-link%20coming%20soon-0f172a?style=flat-square&logo=youtube)
+[![Meta SAM 3.1](https://img.shields.io/badge/Meta-SAM%203.1-0668E1?style=flat-square&logo=meta)](src/cli/meta-sam-run.mjs)
+[![Muse Spark 1.3](https://img.shields.io/badge/Meta-Muse%20Spark%201.3-0668E1?style=flat-square&logo=meta)](src/cli/spark-label-stage.mjs)
+[![License](https://img.shields.io/badge/code-Apache--2.0-22c55e?style=flat-square)](LICENSE)
+
 > **Built entirely during the Meta Global AI Developer Hackathon.** The processing pipeline uses **Meta SAM 3.1** and **Muse Spark 1.3**.
 >
 > **Track: Build for Your World.** A problem I know firsthand: working in biodiversity research, I've seen wildlife footage outgrow the people who have to review it.
 
-[![CI](https://github.com/phybuilds/WildScore/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/phybuilds/WildScore/actions/workflows/ci.yml)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-open%20the%20keyless%20viewer-2563eb?style=for-the-badge)](https://wildscore-demo.pages.dev/)
-
 ![Current WildScore review workspace showing wildlife video, evidence-linked tracks and event timeline](docs/assets/wildscore-review-workspace.jpg)
 
 <sub><em><strong>Figure 1.</strong> Review proposals by sight and sound while preserving the decision trail. Source: WildScore interface and project field footage; CC BY-NC 4.0.</em></sub>
+
+> [!NOTE]
+> **For judges**
+>
+> [![Try it live — 11 recorded checks, or yours](https://img.shields.io/badge/Try_it_live-11_recorded_checks_or_yours-2563EB?style=for-the-badge)](https://wildscore-demo.pages.dev/)
+> ![Watch the demo — 3 minutes on YouTube; link coming soon](https://img.shields.io/badge/Watch_the_demo-3_minutes_on_YouTube%3A_link_coming_soon-0f172a?style=for-the-badge&logo=youtube)
+>
+> - **Tests:** [test source](src) · [GitHub Actions workflow](.github/workflows/ci.yml) · `npm test`
+> - **Evaluation:** [`bench/EVALUATION.md`](bench/EVALUATION.md), a one-page summary of the benchmarking checks.
+> - **Run options:** [Docker, no API key](#docker-static-viewer-only) · [analyse your own footage](#analyse-your-own-footage-requires-meta-api-key)
+
+<p align="center"><a href="#the-problem">Problem</a> · <a href="#see-it-work">Demo</a> · <a href="#quickstart">Quickstart</a> · <a href="#pilot-case-study-n2">Pilot</a> · <a href="#evidence-and-validation">Evidence</a> · <a href="#known-model-limitations">Limitations</a> · <a href="#how-it-works">How it works</a> · <a href="#architecture">Architecture</a> · <a href="#references">References</a></p>
 
 ## The problem
 
@@ -45,9 +61,9 @@ Wildlife is declining fast: WWF's *Living Planet Report 2026* finds an average *
 
 ### The workflow in five steps
 
-![Five-step WildScore workflow from wildlife clip to auditable CSV](docs/assets/workflow-five-steps.jpg)
+![Five-step WildScore workflow from wildlife clip to auditable CSV](docs/assets/workflow-five-steps.png)
 
-<sub><em><strong>Figure 4.</strong> SAM proposes, Muse Spark adds bounded labels, and the reviewer decides. Source: AI-generated workflow graphic, edited for project accuracy; CC BY-NC 4.0.</em></sub>
+<sub><em><strong>Figure 4.</strong> SAM proposes, Muse Spark adds bounded labels, and the reviewer decides. Source: WildScore project-authored diagram; CC BY-NC 4.0.</em></sub>
 
 1. Replay the saved SAM 3.1 and Muse Spark 1.3 result—no live inference.
 2. Select a track or event to jump to its source frame and hear its cue.
@@ -61,15 +77,14 @@ The step-by-step user path is in [the demo guide](docs/DEMO_GUIDE.md).
 
 Every model in the WildScore processing pipeline is a Meta model, including when the saved demo results are generated.
 
-<sub><em><strong>Table 2.</strong> Meta models and tools used by WildScore.</em></sub>
+<sub><em><strong>Table 2.</strong> Meta models used in the WildScore processing pipeline.</em></sub>
 
-| Meta model or tool | Model ID | Role in WildScore | Public verification |
+| Meta model | Model ID | Role in WildScore | Public verification |
 | :--- | :--- | :--- | :--- |
 | **SAM 3.1** | `sam-3.1` | Segments and tracks visible animals; deterministic code derives appearance and disappearance proposals from its geometry. | [`src/cli/meta-sam-run.mjs`](src/cli/meta-sam-run.mjs) and [`scripts/build-result-bundle.mjs`](scripts/build-result-bundle.mjs) |
 | **Muse Spark 1.3** | `muse-spark-1.3` | Reviews selected frames and writes bounded text-label evidence for separate human review. | [`src/cli/spark-label-stage.mjs`](src/cli/spark-label-stage.mjs) and [`scripts/meta-spark-label.mjs`](scripts/meta-spark-label.mjs) |
-| **Muse Code** | Not recorded in the public runtime | Assisted with bounded implementation tasks during the hackathon; it is not part of the processing pipeline. | No runtime, performance or quantitative usage claim is made. |
 
-SAM and Muse Spark calls go through the Meta Model API. The key remains process-local; no fine-tuned or open-weight model is used. Provider-reported usage remains in private run records and is not presented as billing or performance evidence.
+<sub><em><sup>1</sup> Muse Code assisted with bounded implementation tasks during the hackathon. It is not part of the processing pipeline, its model ID is not recorded in the public runtime, and no runtime, performance or quantitative usage claim is made.<br><sup>2</sup> SAM and Muse Spark calls go through the Meta Model API. The key remains process-local; no fine-tuned or open-weight model is used. Provider-reported usage remains in private run records and is not presented as billing or performance evidence.</em></sub>
 
 ## Quickstart
 
@@ -183,7 +198,7 @@ Supplemental recovery tracks are not a cosmetic patch. They demonstrate the engi
 
 ![WildScore private workflow from local video through Meta models to a static evidence viewer](docs/assets/architecture-private-workflow.png)
 
-<sub><em><strong>Figure 9.</strong> Private analysis produces a validated bundle for public, keyless review. Source: AI-generated architecture graphic, edited against the implementation; CC BY-NC 4.0.</em></sub>
+<sub><em><strong>Figure 9.</strong> Private analysis produces a validated bundle for public, keyless review. Source: WildScore project-authored diagram, checked against the implementation; CC BY-NC 4.0.</em></sub>
 
 1. **Local-first.** Raw footage is validated and re-encoded locally with metadata stripped before the bounded derivative is sent for a model call.
 2. **Deterministic anchors.** SAM geometry fixes presence bounds to specific frames, so every human decision remains linked to stable evidence.
@@ -195,7 +210,7 @@ The CLI uses argument arrays rather than shell interpolation, pins the Meta API 
 
 ![WildScore architecture separating saved model evidence, deterministic events, human review and auditable output](docs/assets/architecture-review-provenance.png)
 
-<sub><em><strong>Figure 10.</strong> Machine proposals remain inspectable while reviewer decisions and recovery evidence stay separate. Source: AI-generated architecture graphic, edited against the implementation; CC BY-NC 4.0.</em></sub>
+<sub><em><strong>Figure 10.</strong> Machine proposals remain inspectable while reviewer decisions and recovery evidence stay separate. Source: WildScore project-authored diagram, checked against the implementation; CC BY-NC 4.0.</em></sub>
 
 ### Event anchors
 

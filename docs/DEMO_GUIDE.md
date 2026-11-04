@@ -36,8 +36,8 @@ Open recovery review to see supplemental tracks. These additions improve visible
 
 ## 5. Check evidence and export
 
-The Evidence section shows the bounded held-out wolf result. Export the event ledger to confirm that proposed, accepted, rejected and uncertain records remain present.
+Export the event ledger to confirm that proposed, accepted, rejected and uncertain records remain present. The separate [Evidence and validation](../README.md#evidence-and-validation) section documents the bounded held-out wolf result.
 
-![Held-out wolf boundary evidence](assets/wolf-heldout-boundary.png)
+![Event table showing preserved proposal and review states with CSV export controls](assets/event-table-export.png)
 
-<sub><em><strong>Demo figure 5.</strong> Held-out wolf boundary evidence. Source footage: USFWS Mountain-Prairie, public domain; overlay: WildScore, CC BY-NC 4.0.</em></sub>
+<sub><em><strong>Demo figure 5.</strong> The event table preserves proposal and review states before CSV export. Source: WildScore interface and project field footage; CC BY-NC 4.0.</em></sub>
