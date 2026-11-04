@@ -2,6 +2,8 @@
 
 The hosted and local demos replay saved, integrity-checked SAM 3.1 and Muse Spark 1.3 output. They make no model call and need no API key.
 
+The six files checked by the demo manifest are inventoried in [Demo assets](DEMO_ASSETS.md).
+
 ## 1. Start the saved replay
 
 Open the viewer and select **Analyse**. The video, track layers, and event timeline load from the committed bundle.

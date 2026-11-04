@@ -2,14 +2,15 @@
 
 ### A field log you can listen to.
 
-WildScore turns a short wildlife clip into an **evidence-linked event timeline** with optional spatial audio, so researchers can find, verify and export animal events—and see exactly what the model saw.
+WildScore turns a wildlife clip into an **evidence-linked event timeline** with optional spatial audio, so researchers can find, verify and export animal events—and see exactly what the model saw.
 
 [![CI](https://github.com/phybuilds/WildScore/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/phybuilds/WildScore/actions/workflows/ci.yml)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-keyless%20viewer-2563eb?style=flat-square)](https://wildscore-demo.pages.dev/)
-![Demo Video](https://img.shields.io/badge/YouTube%20demo-link%20coming%20soon-0f172a?style=flat-square&logo=youtube)
-[![Meta SAM 3.1](https://img.shields.io/badge/Meta-SAM%203.1-0668E1?style=flat-square&logo=meta)](src/cli/meta-sam-run.mjs)
-[![Muse Spark 1.3](https://img.shields.io/badge/Meta-Muse%20Spark%201.3-0668E1?style=flat-square&logo=meta)](src/cli/spark-label-stage.mjs)
-[![License](https://img.shields.io/badge/code-Apache--2.0-22c55e?style=flat-square)](LICENSE)
+[![Demo Video](https://img.shields.io/badge/YouTube-watch%20the%203--minute%20demo-0f172a?style=flat-square&logo=youtube)](https://youtu.be/qNI82Sh4N70?si=1h8dzXDXGfr1D9-8)
+[![License](https://img.shields.io/badge/license-Apache--2.0-22c55e?style=flat-square)](LICENSE)
+<br>
+[![Meta SAM 3.1](https://img.shields.io/badge/Meta-SAM%203.1-0668E1?style=flat-square&logo=meta)](https://ai.meta.com/blog/segment-anything-model-3/)
+[![Muse Spark 1.3](https://img.shields.io/badge/Meta-Muse%20Spark%201.3-0668E1?style=flat-square&logo=meta)](https://developers.meta.com/resources/videos/building-with-muse-spark/)
 
 > **Built entirely during the Meta Global AI Developer Hackathon.** The processing pipeline uses **Meta SAM 3.1** and **Muse Spark 1.3**.
 >
@@ -22,11 +23,12 @@ WildScore turns a short wildlife clip into an **evidence-linked event timeline**
 > [!NOTE]
 > **For judges**
 >
-> [![Try it live — 11 recorded checks, or yours](https://img.shields.io/badge/Try_it_live-11_recorded_checks_or_yours-2563EB?style=for-the-badge)](https://wildscore-demo.pages.dev/)
-> ![Watch the demo — 3 minutes on YouTube; link coming soon](https://img.shields.io/badge/Watch_the_demo-3_minutes_on_YouTube%3A_link_coming_soon-0f172a?style=for-the-badge&logo=youtube)
+> [![Try it live — explore saved evidence with no API key](https://img.shields.io/badge/Try_it_live-explore_saved_evidence%2C_no_API_key-2563EB?style=for-the-badge)](https://wildscore-demo.pages.dev/)
+> [![Watch the demo — 3 minutes on YouTube](https://img.shields.io/badge/Watch_the_demo-3_minutes_on_YouTube-0f172a?style=for-the-badge&logo=youtube)](https://youtu.be/qNI82Sh4N70?si=1h8dzXDXGfr1D9-8)
 >
 > - **Tests:** [test source](src) · [GitHub Actions workflow](.github/workflows/ci.yml) · `npm test`
 > - **Evaluation:** [`bench/EVALUATION.md`](bench/EVALUATION.md), a one-page summary of the benchmarking checks.
+> - **Demo assets:** [`docs/DEMO_ASSETS.md`](docs/DEMO_ASSETS.md), the six integrity-checked files and visual walkthrough.
 > - **Run options:** [Docker, no API key](#docker-static-viewer-only) · [analyse your own footage](#analyse-your-own-footage-requires-meta-api-key)
 
 <p align="center"><a href="#the-problem">Problem</a> · <a href="#see-it-work">Demo</a> · <a href="#quickstart">Quickstart</a> · <a href="#pilot-case-study-n2">Pilot</a> · <a href="#evidence-and-validation">Evidence</a> · <a href="#known-model-limitations">Limitations</a> · <a href="#how-it-works">How it works</a> · <a href="#architecture">Architecture</a> · <a href="#references">References</a></p>
@@ -73,9 +75,13 @@ Wildlife is declining fast: WWF's *Living Planet Report 2026* finds an average *
 
 The step-by-step user path is in [the demo guide](docs/DEMO_GUIDE.md).
 
+### Why this clip?
+
+The demonstration deliberately uses a demanding waterhole scene: many animals overlap, the camera pans, subjects pass behind one another, and similar colours blend into the background. It was chosen to stress SAM 3.1 temporal tracking and Muse Spark 1.3's bounded visual labels—not to create an easy success case. Those conditions expose the failures that recovery tracks and human review are designed to preserve and correct.
+
 ### Meta stack
 
-Every model in the WildScore processing pipeline is a Meta model, including when the saved demo results are generated.
+Every model WildScore itself calls in the processing pipeline—including when saved demo results are generated—is a **Meta model**. The current runtime roles are SAM 3.1 for geometry and Muse Spark 1.3 for bounded label evidence. ElevenLabs text-to-speech is used only to narrate the external demo video; it is not part of WildScore and is never called by the application or analysis pipeline.
 
 <sub><em><strong>Table 2.</strong> Meta models used in the WildScore processing pipeline.</em></sub>
 
@@ -100,6 +106,8 @@ npm run build:bundle && npm run dev
 ```
 Opens on <http://127.0.0.1:3000> (or the port shown).
 
+The analysis CLI accepts bounded local clips from 1 to 120 seconds; 30 seconds is the default safety limit used in the examples below.
+
 
 ### Docker (static viewer only)
 ```bash
@@ -116,6 +124,8 @@ npm test && npm run typecheck && npm run build
 ```
 
 `.github/workflows/ci.yml` runs `npm ci --ignore-scripts`, the full test suite, type-checking and the production build on every push and pull request with read-only repository permissions and no secrets. A second job builds the Docker image, inspects the static-only boundary and smoke-tests HTTP 200. The badge above reports the workflow on `main`.
+
+Verified 4 November 2026: **224 automated tests passed**, type-checking passed, and all **six manifest-tracked demo assets** passed integrity verification. Automated tests stay beside the modules they protect; they verify software behaviour and are separate from the empirical checks in [`bench/EVALUATION.md`](bench/EVALUATION.md).
 
 ### Analyse your own footage (requires Meta API key)
 Requires ffmpeg/ffprobe 8.0.3 or a later reviewed patched release and a Meta Model API key stored in ignored `.env.local` storage.
@@ -144,6 +154,21 @@ WildScore ████░░░░░░░░░░░░░░░░░░░�
 WildScore's 30 = 26 reviewer-accepted core proposals + 4 recovery tracks with eligible event evidence. Six more accepted recovery tracks added visible coverage but not events. With no adjudicated reference count, this compares review logs, not recall or precision.
 
 ## Evidence and validation
+
+### Screen-recorded live Meta run
+
+Verified 4 November 2026 against a local, private trace:
+
+- **Endpoint:** `https://api.meta.ai/v1/responses`
+- **Integration:** [`src/cli/meta-sam-client.mjs`](src/cli/meta-sam-client.mjs) and [`src/cli/spark-label-stage.mjs`](src/cli/spark-label-stage.mjs)
+- **Input:** sanitised 5.0-second excerpt, 1920×1080 at 60 fps
+- **Meta processing derivative:** 75 frames at 15 fps
+- **SAM 3.1:** completed; 9 tracks; 672 boxes and 672 masks
+- **WildScore deterministic stage:** 9 presence segments; 2 appearance proposals
+- **Muse Spark 1.3:** one request; HTTP 200; validated `baboon` label proposal
+- **Local trace:** `run-ef533725919df4b2` (trace contents remain private)
+
+This is one recorded run, not a latency or accuracy benchmark. The [three-minute demo](https://youtu.be/qNI82Sh4N70?si=1h8dzXDXGfr1D9-8) shows the live execution without publishing credentials, raw traces or private footage.
 
 ### Held-out pipeline check
 
@@ -262,6 +287,9 @@ Appearance cues rise; disappearance cues fall. Rejected and uncertain events are
 | `src/` | Schemas, Meta clients, event derivation, review state, audio scheduling and safe exports |
 | `web/` | Static review viewer; no upload or inference endpoint |
 | `docs/DEMO_GUIDE.md` | Short evidence-led user walkthrough |
+| `docs/DEMO_ASSETS.md` | Inventory and visual guide for the six integrity-checked demo assets |
+| `docs/assets/demo_video/CREDITS.md` | Demo-video narration, sound and illustrative-media credits |
+| `bench/EVALUATION.md` | One-page pilot, held-out, temporal A/B and repository-verification summary |
 | `Dockerfile` / `.dockerignore` | Non-root static viewer image and strict build-context boundary |
 | `.github/workflows/ci.yml` | Secret-free test/build job and Docker boundary smoke test |
 | `.env.example` | Name-only template for the local `MODEL_API_KEY` |
@@ -270,18 +298,31 @@ Appearance cues rise; disappearance cues fall. Rejected and uncertain events are
 
 ## Post-hackathon stretch goals
 
-Only Meta models are used in the processing pipeline for this build. Stretch goals after the hackathon:
+Only Meta models are used in the processing pipeline for this build. Stretch goals after the hackathon (**none built; each would need evaluation, and models named are planned roles, not claims**):
 
-1. **Scientific names:** common names to binomials (*Papio anubis*, not “baboon”), with a toggle.
-2. **Location-bounded context:** optional country species lists to constrain label proposals.
-3. **Interaction flags:** cluster overlapping events into candidate social or predation events for review.
-4. **In-app prompt tuning:** one-click prompt refinement from reviewer feedback.
-5. **Optional integrations:** comparison layers such as SpeciesNet, preserving local-first and human-review rules.
+1. **Scientific names** *(Muse Spark)*: common names to binomials (*Papio anubis*, not “baboon”), with a toggle and reviewer confirmation.
+2. **Location-bounded context** *(Muse Spark)*: optional country species lists to constrain label proposals.
+3. **Backlog intake** *(Muse Wonder)*: read embedded and burned-in metadata and flag likely-empty clips from sampled frames before SAM runs. Proposals only, with human review.
+4. **Interaction flags** *(SAM 3.1 geometry + Muse Spark)*: cluster overlapping events into candidate social or predation events for review.
+5. **In-app prompt tuning** *(Muse Spark or Muse Wonder)*: one-click prompt refinement from reviewer feedback, evaluated on held-out clips.
+6. **Local triage mode** *(Muse Glimmer, open-weight)*: optional triage so footage and camera locations never leave the researcher's machine.
+7. **Field plates** *(Muse Image)*: watercolour summaries of reviewed tracks, clearly labelled as illustrative art, not evidence or counts.
+8. **Optional non-Meta comparison:** comparison layers such as SpeciesNet, outside the Meta-only pipeline, preserving local-first and human-review rules.
+
+## Demo video credits
+
+The [three-minute submission video](https://youtu.be/qNI82Sh4N70?si=1h8dzXDXGfr1D9-8) uses WildScore interface recordings and project footage. Four AI-generated camera-trap illustrations appear only as transitions; they are illustrative media, not model evidence, wildlife records or WildScore output.
+
+**Text-to-speech:** the narration voice was generated using [ElevenLabs](https://elevenlabs.io/). TTS is used only in the demo video and is not part of the WildScore runtime or Meta-only processing pipeline.
+
+**Sound effects:** supplied through [Pixabay](https://pixabay.com/) under the [Pixabay Content License](https://pixabay.com/service/license-summary/): African Bush, Typing, Camera Focus, Static Poppy Light and Water Splash by `freesound_community`; Rembobinage Cassette Audio by `son_duquotidient`; Computer Mouse Click by `Universfield`.
+
+See the complete [demo-video media credits](docs/assets/demo_video/CREDITS.md).
 
 ## References
 
 1. <a id="reference-1"></a>WWF. [*Living Planet Report 2026*](https://www.worldwildlife.org/publications/2026-living-planet-report/).
-2. <a id="reference-2"></a>Celis et al. (2024). [Camera-trap review research record](https://munin.uit.no/handle/10037/34526).
+2. <a id="reference-2"></a>Celis et al. (2024). [Camera-trap review research record](https://nva.sikt.no/registration/0198cc8eb4ff-62d5f0e6-9010-463f-a0d8-f50098bcc129).
 3. <a id="reference-3"></a>Thornton et al. (2026). [Automated MegaDetector and SpeciesNet occupancy study](https://besjournals.onlinelibrary.wiley.com/doi/10.1111/1365-2664.70370).
 
 ## License
@@ -291,5 +332,6 @@ WildScore uses a dual-license strategy:
 - **Codebase and pipeline core:** [Apache License 2.0](LICENSE). Third-party dependencies and Meta model services retain their own terms.
 - **WildScore-owned multimedia and documentation graphics:** [Creative Commons Attribution-NonCommercial 4.0 International](LICENSE-MEDIA.md). Attribute them to the **WildScore project**.
 - **Third-party media:** retains its original licence. The held-out USFWS wolf footage is public domain; the coral-reef source footage remains under its source licence, while WildScore's overlays and annotations are CC BY-NC 4.0.
+- **Demo-video narration and sound effects:** retain their service or source terms and are credited in [`docs/assets/demo_video/CREDITS.md`](docs/assets/demo_video/CREDITS.md); they are not relicensed as WildScore-owned CC BY-NC media.
 
 *WildScore does not claim to solve wildlife monitoring. It gives researchers a faster, more honest way to see what the model saw—and correct it.*
