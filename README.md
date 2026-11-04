@@ -238,7 +238,7 @@ Appearance cues rise; disappearance cues fall. Rejected and uncertain events are
 
 ### Repo layout
 
-<sub><em><strong>Table 5.</strong> Public repository structure and responsibility boundaries.</em></sub>
+<sub><em><strong>Table 4.</strong> Public repository structure and responsibility boundaries.</em></sub>
 
 | Path | Purpose |
 | :--- | :--- |
