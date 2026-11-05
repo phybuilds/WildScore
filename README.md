@@ -26,7 +26,6 @@ WildScore turns a wildlife clip into an **evidence-linked event timeline** with 
 > [![Try it live — explore saved evidence with no API key](https://img.shields.io/badge/Try_it_live-explore_saved_evidence%2C_no_API_key-2563EB?style=for-the-badge)](https://wildscore-demo.pages.dev/)
 >
 > [![Watch the demo — 3 minutes on YouTube](https://img.shields.io/badge/Watch_the_demo-3_minutes_on_YouTube-0f172a?style=for-the-badge&logo=youtube)](https://youtu.be/qNI82Sh4N70?si=1h8dzXDXGfr1D9-8)
->
 > <sub>*(Choose 1080p/highest quality for the best viewing experience)*</sub>
 >
 > - **Tests:** [test source](src) · [GitHub Actions workflow](.github/workflows/ci.yml) · `npm test`
