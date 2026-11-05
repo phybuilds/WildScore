@@ -64,7 +64,11 @@ Wildlife is declining fast: WWF's *Living Planet Report 2026* finds an average *
 
 ### The workflow in five steps
 
-![Five-step WildScore workflow from wildlife clip to auditable CSV](docs/assets/workflow-five-steps.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/workflow-five-steps.png#gh-dark-mode-only">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/workflow-five-steps.png#gh-light-mode-only">
+  <img alt="Five-step WildScore workflow from wildlife clip to auditable CSV" src="docs/assets/workflow-five-steps.png">
+</picture>
 
 <sub><em><strong>Figure 4.</strong> SAM proposes, Muse Spark adds bounded labels, and the reviewer decides. Source: WildScore project-authored diagram; CC BY-NC 4.0.</em></sub>
 
